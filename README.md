@@ -38,7 +38,7 @@ chmod +x setup-termux.sh start-agent.sh
 ./setup-termux.sh
 ```
 
-O setup cria ou atualiza `.env`, pede a chave API sem exibi-la, oferece configuração genérica de endpoint compatível com OpenAI por padrão e permite escolher uma configuração opcional da Agnes AI. Valida URL/modelo, grava o arquivo atomicamente com permissão privada, faz backup do `.env` anterior como `.env.backup` e roda os testes. Se já houver provedor e chave configurados, eles são mantidos a menos que você escolha alterá-los. A configuração de Termux:Boot é opcional e só ocorre com sua confirmação.
+O setup cria ou atualiza `.env`, pede a chave API sem exibi-la, oferece configuração genérica de endpoint compatível com OpenAI por padrão e permite escolher uma configuração opcional da Agnes AI. Valida URL/modelo, grava o arquivo atomicamente com permissão privada, faz backup do `.env` anterior como `.env.backup` e roda os testes. Se já houver provedor e chave configurados, eles são mantidos a menos que você escolha alterá-los. A configuração de Termux:Boot é opcional e só ocorre com sua confirmação. O arquivo `.env` é interpretado pelo Python como dados; nenhum script o executa como shell.
 
 A chave precisa ser criada na conta do provedor de IA. Não a envie no chat, não a publique e não a coloque em um commit. O setup não instala bibliotecas Python externas: o agente usa a biblioteca padrão.
 
@@ -68,6 +68,8 @@ Use o mesmo `session_id` para continuar a conversa. A resposta inclui `reply` e 
 No setup, escolha a opção genérica e informe o endpoint-base, o nome exato do modelo e uma chave emitida pelo provedor que você usa. O endpoint precisa seguir o formato OpenAI Chat Completions e aceitar chamadas de ferramentas; isso permite configurar diferentes serviços sem prender o projeto a um deles. A Agnes AI aparece apenas como atalho opcional. Endpoints remotos exigem HTTPS; HTTP só é aceito para loopback local, para não enviar a chave em texto aberto. Depois de editar `.env`, encerre o processo com Ctrl+C e rode `./start-agent.sh` novamente. Confirme na documentação do provedor o endpoint e o identificador do modelo.
 
 Preencha `AGENT_API_KEY`, `AGENT_BASE_URL` e `AGENT_MODEL` em `.env`; use os valores e o formato informados pelo provedor escolhido.
+
+O arquivo aceita linhas `AGENT_NOME=valor`, linhas de comentário iniciadas por `#` e valores citados com sintaxe compatível com a configuração atual do setup. Aspas preservam espaços e caracteres como `$`, `;`, `#`, barra invertida e aspas. Não há expansão de variáveis, substituição `$(...)` nem execução de comandos: esses caracteres são apenas texto. O arquivo pode ser editado pelo setup, que faz a citação apropriada para os valores inseridos.
 
 Variáveis adicionais incluem `AGENT_HOST`, `AGENT_PORT`, `AGENT_ACCESS_TOKEN`, `AGENT_DB_PATH` e `AGENT_HISTORY_LIMIT`. Por segurança, mantenha `AGENT_HOST=127.0.0.1`. Um token é opcional no loopback; se configurar `AGENT_ACCESS_TOKEN`, inclua `Authorization: Bearer <token>` nas chamadas protegidas.
 

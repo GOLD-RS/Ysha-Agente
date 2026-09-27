@@ -15,7 +15,7 @@ ENV_FILE = ROOT / ".env"
 EXAMPLE_FILE = ROOT / ".env.example"
 ASSIGNMENT = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 sys.path.insert(0, str(ROOT / "src"))
-from termux_agent.config import validate_base_url  # noqa: E402
+from termux_agent.config import parse_env_text, validate_base_url  # noqa: E402
 
 PROVIDERS = {
     "1": ("Qualquer provedor OpenAI-compatível", "", ""),
@@ -41,17 +41,7 @@ def step(number: int, title: str, note: str) -> None:
 
 
 def read_values(lines: list[str]) -> dict[str, str]:
-    values = {}
-    for line in lines:
-        match = ASSIGNMENT.match(line)
-        if not match:
-            continue
-        try:
-            parts = shlex.split(match.group(2), comments=False, posix=True)
-        except ValueError:
-            continue
-        values[match.group(1)] = parts[0] if parts else ""
-    return values
+    return parse_env_text("\n".join(lines))
 
 
 def update_values(lines: list[str], updates: dict[str, str]) -> list[str]:
@@ -164,7 +154,13 @@ def main() -> int:
     if not EXAMPLE_FILE.is_file():
         print("Não encontrei .env.example; execute o script na pasta do projeto.", file=sys.stderr)
         return 1
+    if ENV_FILE.is_symlink():
+        print("Por segurança, .env não pode ser um link simbólico.", file=sys.stderr)
+        return 1
     if ENV_FILE.exists():
+        if not ENV_FILE.is_file():
+            print(".env não é um arquivo regular.", file=sys.stderr)
+            return 1
         lines = ENV_FILE.read_text(encoding="utf-8").splitlines()
     else:
         lines = EXAMPLE_FILE.read_text(encoding="utf-8").splitlines()
@@ -210,7 +206,7 @@ def main() -> int:
     step(3, "Conferindo a instalação", "Compilação e testes rápidos; nenhum segredo será impresso.")
     test_env = os.environ.copy()
     test_env["PYTHONPATH"] = str(ROOT / "src")
-    subprocess.run([sys.executable, "-m", "compileall", "-q", "src", "tests"], cwd=ROOT, check=True)
+    subprocess.run([sys.executable, "-m", "compileall", "-q", "src", "tests", "scripts"], cwd=ROOT, check=True)
     subprocess.run(
         [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
         cwd=ROOT,

@@ -10,7 +10,7 @@ Roadmap incremental para evoluir o produto sem trocar a base funcional. Uma etap
 - [x] Backup atômico e permissões privadas para `.env`; rejeitar `.env` como symlink.
 - [x] Limitar concorrência HTTP, aplicar timeout de leitura e rate limiting por cliente.
 - [ ] Padronizar erros e validar rigorosamente todas as respostas/argumentos do provedor.
-- [ ] Trocar sourcing de `.env` por carregamento de configuração que nunca execute conteúdo do arquivo.
+- [x] Ler `.env` como dados com parser compartilhado por início manual e Termux:Boot; sem sourcing, expansão ou execução.
 - [ ] Adicionar backup/restore do SQLite com `sqlite3` backup API, teste de integridade e recuperação de falha.
 
 ## P1 — contexto, provedores, ferramentas e observabilidade

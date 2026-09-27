@@ -5,7 +5,7 @@ Este documento descreve o código que existe agora; não trata itens planejados 
 ## Estrutura atual
 
 - `src/termux_agent/__main__.py`: valida configuração e inicializa servidor, provedor, histórico e agente.
-- `config.py`: lê variáveis de ambiente e valida o endpoint de modelo.
+- `config.py`: interpreta `.env` sem executar conteúdo, lê variáveis de ambiente e valida configuração/endpoints.
 - `agent.py`: monta o prompt com contexto recente, executa o ciclo limitado de tool calling e serializa requisições da mesma sessão.
 - `provider.py`: cliente síncrono para a forma OpenAI Chat Completions, com timeout e limite de resposta.
 - `history.py`: persistência SQLite, transcript por sessão e arquivamento comprimido de blocos antigos; o contexto de modelo é limitado separadamente.
@@ -31,7 +31,7 @@ Este documento descreve o código que existe agora; não trata itens planejados 
 - As ferramentas existentes não executam shell, não leem arquivos e não fazem ações externas. A calculadora aceita uma AST aritmética restrita.
 - O processo Python e as ferramentas compartilham o mesmo usuário e filesystem do Termux. **Não existe sandbox de processos** nem isolamento de plugin/MCP.
 - O conteúdo da conversa é enviado ao provedor escolhido; as transcrições locais ficam no arquivo SQLite. A interface não envia credenciais do provedor ao navegador.
-- `.env` é carregado pelo script de início como shell. O setup escreve valores citados com segurança, mas essa abordagem ainda torna `.env` um arquivo executável se alguém o editar manualmente com comandos; a migração para parser de configuração sem execução está planejada.
+- `.env` é tratado apenas como dados pelo parser Python: aceita somente atribuições `AGENT_*`, comentários em linhas próprias e valores citados com a gramática compatível com o setup atual. `shlex` separa tokens, sem expansão de `$`, substituição `$(...)`, execução de comandos ou importação de variáveis arbitrárias. Valores do arquivo substituem variáveis `AGENT_*` herdadas pelo processo. Setup, início manual e Termux:Boot usam o mesmo parser.
 
 ## Limites ainda presentes
 

@@ -10,7 +10,7 @@ from setup_termux import choose_provider, read_values, save_env, update_values  
 
 
 class SetupTests(unittest.TestCase):
-    def test_secret_shell_quoting_round_trips_and_other_settings_survive(self):
+    def test_config_quoting_round_trips_and_other_settings_survive(self):
         lines = [
             "# local configuration",
             "AGENT_API_KEY=",

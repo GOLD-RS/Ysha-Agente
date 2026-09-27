@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/sh
-# Termux:Boot executa este supervisor ao iniciar o Android.
+# Termux:Boot executa este supervisor; .env é lido pelo Python como dado.
 set -u
 umask 077
 
@@ -16,11 +16,8 @@ if [ ! -f .env ]; then
   printf '%s Arquivo .env ausente; rode o setup antes do boot.\n' "$(date -Is)" >>"$LOG"
   exit 1
 fi
-set -a
-. ./.env
-set +a
-if [ -z "${AGENT_API_KEY:-}" ] || [ -z "${AGENT_BASE_URL:-}" ] || [ -z "${AGENT_MODEL:-}" ]; then
-  printf '%s Configuração de provedor incompleta; rode o setup.\n' "$(date -Is)" >>"$LOG"
+if ! python3 "$PROJECT/scripts/check_config.py" >>"$LOG" 2>&1; then
+  printf '%s Configuração inválida; revise .env e rode o setup.\n' "$(date -Is)" >>"$LOG"
   exit 1
 fi
 export PYTHONPATH="$PROJECT/src${PYTHONPATH:+:$PYTHONPATH}"
