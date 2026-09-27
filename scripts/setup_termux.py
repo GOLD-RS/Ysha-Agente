@@ -15,9 +15,26 @@ ENV_FILE = ROOT / ".env"
 EXAMPLE_FILE = ROOT / ".env.example"
 ASSIGNMENT = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 PROVIDERS = {
-    "1": ("Outro provedor compatível com OpenAI Chat Completions", "", ""),
+    "1": ("Qualquer provedor OpenAI-compatível", "", ""),
     "2": ("Agnes AI (opcional)", "https://apihub.agnes-ai.com/v1", "agnes-3.0-flash"),
 }
+
+
+def paint(text: str, code: str) -> str:
+    if not sys.stdout.isatty() or os.getenv("NO_COLOR"):
+        return text
+    return f"\033[{code}m{text}\033[0m"
+
+
+def banner() -> None:
+    print(paint("╭──────────────────────────────────────────────╮", "38;5;141"))
+    print(paint("│       Y S H A   A G E N T E  ·  SETUP       │", "1;97"))
+    print(paint("│       Configuração simples, provedor seu     │", "38;5;110"))
+    print(paint("╰──────────────────────────────────────────────╯", "38;5;141"))
+
+
+def step(number: int, title: str, note: str) -> None:
+    print(f"\n{paint(f'{number:02d}  {title}', '1;38;5;141')}\n    {paint(note, '38;5;110')}")
 
 
 def read_values(lines: list[str]) -> dict[str, str]:
@@ -105,6 +122,8 @@ def install_boot_launcher() -> None:
 
 
 def main() -> int:
+    banner()
+    print("Este assistente guarda a configuração apenas neste aparelho.")
     if not EXAMPLE_FILE.is_file():
         print("Não encontrei .env.example; execute o script na pasta do projeto.", file=sys.stderr)
         return 1
@@ -115,6 +134,7 @@ def main() -> int:
         print("Criando .env local a partir de .env.example.")
 
     current = read_values(lines)
+    step(1, "Chave da API", "Ela fica oculta durante a digitação e é salva apenas em .env.")
     old_key = current.get("AGENT_API_KEY", "")
     api_key = old_key
     if old_key:
@@ -128,6 +148,7 @@ def main() -> int:
     else:
         api_key = getpass("Chave API do provedor (entrada oculta; Enter para configurar depois): ").strip()
 
+    step(2, "Escolha do provedor", "Use qualquer serviço com Chat Completions e chamadas de ferramentas.")
     base_url, model = choose_provider(current)
     parsed = urlsplit(base_url)
     if parsed.scheme not in ("https", "http") or not parsed.netloc:
@@ -146,6 +167,7 @@ def main() -> int:
     ENV_FILE.chmod(0o600)
     (ROOT / "data").mkdir(exist_ok=True)
 
+    step(3, "Conferindo a instalação", "Compilação e testes rápidos; nenhum segredo será impresso.")
     test_env = os.environ.copy()
     test_env["PYTHONPATH"] = str(ROOT / "src")
     subprocess.run([sys.executable, "-m", "compileall", "-q", "src", "tests"], cwd=ROOT, check=True)
@@ -156,15 +178,19 @@ def main() -> int:
         check=True,
     )
 
-    print("\nConfiguração salva com permissão privada; chave ocultada.")
+    print("\n" + paint("✓ Setup concluído. .env está protegido e a chave foi ocultada.", "1;38;5;114"))
     print(f"Provedor: {base_url}\nModelo: {model}")
     if not api_key:
-        print("Atenção: nenhuma chave foi configurada; as chamadas de chat não funcionarão ainda.")
-    print("Inicie com: ./start-agent.sh")
-    if yes_no("Configurar início automático com Termux:Boot?"):
-        install_boot_launcher()
+        print(paint("A chave ainda não foi informada; configure-a antes de iniciar o chat.", "38;5;203"))
+    print(paint("\nPara iniciar o chat, execute: ./start-agent.sh", "1;97"))
+    if api_key:
+        step(4, "Início automático (opcional)", "Requer o aplicativo Termux:Boot instalado e aberto uma vez.")
+        if yes_no("Configurar início automático com Termux:Boot?"):
+            install_boot_launcher()
+        else:
+            print("Nenhuma configuração de boot foi alterada.")
     else:
-        print("Boot não foi alterado. Você pode configurar depois executando este setup novamente.")
+        print("O início automático ficará disponível depois que a chave for configurada.")
     return 0
 
 

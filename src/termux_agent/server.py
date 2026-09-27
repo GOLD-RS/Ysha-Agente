@@ -3,6 +3,7 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hmac
 import json
+from pathlib import Path
 import re
 import uuid
 
@@ -11,6 +12,7 @@ from .provider import ProviderError
 
 MAX_BODY_BYTES = 64 * 1024
 SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+CHAT_PAGE = Path(__file__).resolve().parents[2] / "web" / "index.html"
 
 
 def authorization_valid(provided: str, token: str) -> bool:
@@ -37,10 +39,33 @@ def make_handler(agent: Agent):
             )
 
         def do_GET(self):
-            if self.path != "/health":
-                self._send_json(404, {"error": "not_found"})
+            if self.path == "/":
+                try:
+                    body = CHAT_PAGE.read_bytes()
+                except OSError:
+                    self._send_json(503, {"error": "chat_interface_unavailable"})
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
+                self.end_headers()
+                self.wfile.write(body)
                 return
-            self._send_json(200, {"status": "ok", "memory": "sqlite"})
+            if self.path == "/health":
+                self._send_json(200, {"status": "ok", "memory": "sqlite"})
+                return
+            match = re.fullmatch(r"/sessions/([A-Za-z0-9_-]{1,64})", self.path)
+            if match:
+                if not self._authorized():
+                    self._send_json(401, {"error": "unauthorized"})
+                    return
+                self._send_json(200, {"messages": agent.history.get(match.group(1))})
+                return
+            self._send_json(404, {"error": "not_found"})
 
         def do_POST(self):
             if self.path != "/chat":
@@ -102,7 +127,9 @@ def make_handler(agent: Agent):
 def serve(agent: Agent, host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), make_handler(agent))
     server.daemon_threads = True
-    print(f"Ysha Agente ativo em http://{host}:{port} (Ctrl+C para encerrar)", flush=True)
+    address = f"[{host}]" if ":" in host else host
+    print(f"Ysha Agente ativo em http://{address}:{port}", flush=True)
+    print(f"Abra http://{address}:{port}/ no navegador para conversar. Ctrl+C encerra.", flush=True)
     try:
         server.serve_forever(poll_interval=0.5)
     except KeyboardInterrupt:

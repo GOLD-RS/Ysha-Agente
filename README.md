@@ -6,7 +6,7 @@ Assistente pessoal de IA para Android/Termux. O repositório é público e pode 
 
 O Ysha funciona como um servidor local de conversa conectado a qualquer provedor que ofereça endpoint compatível com OpenAI Chat Completions e chamadas de ferramentas. Não há provedor obrigatório nem padrão associado a uma empresa; cada pessoa configura seu próprio endpoint, modelo e chave no arquivo local `.env`.
 
-- Servidor local em `127.0.0.1:8765`.
+- Servidor local em `127.0.0.1:8765`, com chat web responsivo integrado e sem dependências externas.
 - Histórico SQLite persistente por sessão, limitado às últimas 20 mensagens por padrão.
 - Mensagens da mesma sessão processadas em ordem; sessões distintas continuam independentes.
 - Ferramentas locais limitadas à hora e à calculadora segura; não executa comandos nem lê arquivos.
@@ -47,7 +47,9 @@ Inicie o servidor em primeiro plano:
 ./start-agent.sh
 ```
 
-Deixe essa sessão aberta. Em uma segunda sessão do Termux, verifique o serviço e envie uma mensagem:
+Com o servidor ativo, abra o navegador do próprio Android em **http://127.0.0.1:8765/**. Essa é a interface de chat: envie mensagens, comece conversas novas e retome o histórico salvo. Se você configurou `AGENT_ACCESS_TOKEN`, informe-o no botão de configurações do chat; ele fica apenas na aba do navegador.
+
+Deixe a sessão do servidor aberta. Se quiser testar pela API em outra sessão do Termux:
 
 ```sh
 curl http://127.0.0.1:8765/health
@@ -90,7 +92,9 @@ O setup preserva sua chave, valida o projeto e executa os testes.
 
 ## Rotas locais
 
+- `GET /` — interface web local para conversar com o agente.
 - `GET /health` — estado do serviço.
+- `GET /sessions/{session_id}` — histórico da sessão atual.
 - `POST /chat` — recebe `{"message":"..."}` e, opcionalmente, `session_id`.
 - `DELETE /sessions/{session_id}` — apaga o histórico daquela sessão.
 
@@ -99,7 +103,7 @@ O servidor aceita apenas conexões locais por padrão. Não o exponha diretament
 ## Desenvolvimento e validação
 
 ```sh
-PYTHONPATH=src python -m compileall -q src tests
+PYTHONPATH=src python -m compileall -q src tests scripts
 PYTHONPATH=src python -m unittest discover -s tests -v
 ```
 
