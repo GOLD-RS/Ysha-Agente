@@ -1,24 +1,57 @@
-"""Agente com histórico por sessão e execução limitada de ferramentas."""
+"""Agente com histórico por sessão, serialização e ferramentas limitadas."""
 
+from contextlib import contextmanager
 import json
+import re
+import threading
 
 from .history import HistoryStore
 from .provider import ChatProvider, ProviderError
 from .tools import TOOL_DEFINITIONS, ToolError, run_tool
+
+SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 class Agent:
     def __init__(self, provider: ChatProvider, history: HistoryStore):
         self.provider = provider
         self.history = history
+        self._lock_guard = threading.Lock()
+        self._session_locks: dict[str, tuple[threading.Lock, int]] = {}
+
+    @contextmanager
+    def _session_lock(self, session_id: str):
+        # Mesma sessão é processada em ordem; sessões diferentes seguem em paralelo.
+        with self._lock_guard:
+            entry = self._session_locks.get(session_id)
+            lock = entry[0] if entry else threading.Lock()
+            users = entry[1] + 1 if entry else 1
+            self._session_locks[session_id] = (lock, users)
+        lock.acquire()
+        try:
+            yield
+        finally:
+            lock.release()
+            with self._lock_guard:
+                current_lock, users = self._session_locks[session_id]
+                if users <= 1:
+                    del self._session_locks[session_id]
+                else:
+                    self._session_locks[session_id] = (current_lock, users - 1)
 
     def respond(self, session_id: str, message: str) -> str:
-        message = message.strip()
+        if not isinstance(session_id, str) or not SESSION_RE.fullmatch(session_id):
+            raise ValueError("Identificador de sessão inválido.")
+        message = message.strip() if isinstance(message, str) else ""
         if not message:
             raise ValueError("A mensagem não pode ficar vazia.")
         if len(message) > 12_000:
             raise ValueError("A mensagem excede o limite de 12.000 caracteres.")
 
+        with self._session_lock(session_id):
+            return self._respond_locked(session_id, message)
+
+    def _respond_locked(self, session_id: str, message: str) -> str:
         messages = [{"role": "system", "content": self.provider.settings.system_prompt}]
         messages.extend(self.history.get(session_id))
         messages.append({"role": "user", "content": message})
