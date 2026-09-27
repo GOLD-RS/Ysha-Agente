@@ -1,21 +1,29 @@
 #!/data/data/com.termux/files/usr/bin/sh
-# Termux:Boot executa este script ao iniciar o Android.
-set -eu
+# Termux:Boot executa este supervisor ao iniciar o Android.
+set -u
 
-PROJECT="$HOME/projetos/agente-geral-termux"
-LOG="$HOME/agente-geral-termux.log"
+PROJECT="$HOME/projetos/Ysha-Agente"
+LOG="$HOME/ysha-agente.log"
 mkdir -p "$HOME/projetos"
+cd "$PROJECT" || exit 1
 
-# Impede suspensão profunda enquanto o agente está ativo (Termux:API opcional).
 if command -v termux-wake-lock >/dev/null 2>&1; then
   termux-wake-lock || true
 fi
-
-cd "$PROJECT"
 if [ -f .env ]; then
   set -a
   . ./.env
   set +a
 fi
 export PYTHONPATH="$PROJECT/src${PYTHONPATH:+:$PYTHONPATH}"
-nohup python -m termux_agent >>"$LOG" 2>&1 </dev/null &
+
+# Se o processo cair, tenta iniciá-lo de novo após uma pausa.
+while :; do
+  if python -m termux_agent >>"$LOG" 2>&1; then
+    status=0
+  else
+    status=$?
+  fi
+  printf '%s Ysha Agente encerrou (código %s); nova tentativa em 10s.\n' "$(date -Is)" "$status" >>"$LOG"
+  sleep 10
+done
