@@ -10,7 +10,7 @@ Roadmap incremental para evoluir o produto sem trocar a base funcional. Uma etap
 - [x] Backup atômico e permissões privadas para `.env`; rejeitar `.env` como symlink.
 - [x] Limitar concorrência HTTP, aplicar timeout de leitura e rate limiting por cliente.
 - [x] Validar envelope Chat Completions, papel/conteúdo, tool_calls, IDs únicos, tipo/nome e argumentos JSON sem duplicatas/constantes não padrão.
-- [ ] Padronizar erros da API sem expor detalhes internos, stack traces ou credenciais.
+- [x] Padronizar erros da API como `{error, message}` com códigos estáveis; suprimir detalhes internos, stack traces, credenciais e respostas brutas do provedor.
 - [x] Ler `.env` como dados com parser compartilhado por início manual e Termux:Boot; sem sourcing, expansão ou execução.
 - [x] Backup/restore do SQLite via API `sqlite3`, com integrity check, arquivos privados, destino sem sobrescrita, confirmação e salvaguarda antes de restaurar.
 

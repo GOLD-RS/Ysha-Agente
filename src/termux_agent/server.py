@@ -56,6 +56,19 @@ def authorization_valid(provided: str, token: str) -> bool:
     )
 
 
+def _guard_handler(method):
+    def guarded(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+        except Exception:
+            if not getattr(self, "_response_started", False):
+                try:
+                    self._send_error_response(500, "internal_error", "Ocorreu um erro interno. Tente novamente.")
+                except Exception:
+                    pass
+    return guarded
+
+
 def make_handler(agent: Agent):
     rate_limiter = SlidingWindowRateLimiter()
 
@@ -65,6 +78,7 @@ def make_handler(agent: Agent):
         sys_version = ""
 
         def _send_json(self, status: int, payload: dict, extra_headers: dict[str, str] | None = None) -> None:
+            self._response_started = True
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -75,19 +89,40 @@ def make_handler(agent: Agent):
             self.end_headers()
             self.wfile.write(body)
 
+        def _send_error_response(
+            self,
+            status: int,
+            code: str,
+            message: str,
+            extra_headers: dict[str, str] | None = None,
+        ) -> None:
+            self._send_json(status, {"error": code, "message": message}, extra_headers)
+
+        def send_error(self, code, message=None, explain=None):
+            if getattr(self, "_response_started", False):
+                return
+            if code == 501:
+                self._send_error_response(405, "method_not_allowed", "Método não permitido.")
+            elif code == 414:
+                self._send_error_response(414, "request_target_too_long", "Caminho da solicitação muito longo.")
+            else:
+                self._send_error_response(400, "bad_request", "Solicitação inválida.")
+
         def _authorized(self) -> bool:
             return authorization_valid(
                 self.headers.get("Authorization", ""),
                 agent.provider.settings.access_token,
             )
 
+        @_guard_handler
         def do_GET(self):
             if self.path == "/":
                 try:
                     body = CHAT_PAGE.read_bytes()
                 except OSError:
-                    self._send_json(503, {"error": "chat_interface_unavailable"})
+                    self._send_error_response(503, "chat_interface_unavailable", "A interface local não está disponível.")
                     return
+                self._response_started = True
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
@@ -104,7 +139,7 @@ def make_handler(agent: Agent):
             match = re.fullmatch(r"/sessions/([A-Za-z0-9_-]{1,64})", self.path)
             if match:
                 if not self._authorized():
-                    self._send_json(401, {"error": "unauthorized"})
+                    self._send_error_response(401, "unauthorized", "Acesso não autorizado.")
                     return
                 recent = agent.history.get_recent(match.group(1), UI_HISTORY_LIMIT + 1)
                 truncated = len(recent) > UI_HISTORY_LIMIT
@@ -113,64 +148,66 @@ def make_handler(agent: Agent):
                     "history_is_truncated": truncated,
                 })
                 return
-            self._send_json(404, {"error": "not_found"})
+            self._send_error_response(404, "not_found", "Rota não encontrada.")
 
+        @_guard_handler
         def do_POST(self):
             if self.path != "/chat":
-                self._send_json(404, {"error": "not_found"})
+                self._send_error_response(404, "not_found", "Rota não encontrada.")
                 return
             if not self._authorized():
-                self._send_json(401, {"error": "unauthorized"})
+                self._send_error_response(401, "unauthorized", "Acesso não autorizado.")
                 return
             allowed, retry_after = rate_limiter.allow(self.client_address[0])
             if not allowed:
-                self._send_json(429, {"error": "rate_limited"}, {"Retry-After": str(retry_after)})
+                self._send_error_response(429, "rate_limited", "Muitas solicitações; aguarde antes de tentar novamente.", {"Retry-After": str(retry_after)})
                 return
             try:
                 length = int(self.headers.get("Content-Length", "0"))
             except ValueError:
-                self._send_json(400, {"error": "invalid_content_length"})
+                self._send_error_response(400, "invalid_content_length", "Tamanho da solicitação inválido.")
                 return
             if length <= 0 or length > MAX_BODY_BYTES:
-                self._send_json(413 if length > MAX_BODY_BYTES else 400, {"error": "invalid_body_size"})
+                self._send_error_response(413 if length > MAX_BODY_BYTES else 400, "invalid_body_size", "Tamanho do corpo inválido.")
                 return
             if "application/json" not in self.headers.get("Content-Type", ""):
-                self._send_json(415, {"error": "content_type_must_be_json"})
+                self._send_error_response(415, "unsupported_media_type", "Envie o corpo no formato JSON.")
                 return
             try:
                 raw_body = self.rfile.read(length)
             except (socket.timeout, TimeoutError):
-                self._send_json(408, {"error": "request_timeout"})
+                self._send_error_response(408, "request_timeout", "A solicitação demorou demais.")
                 return
             try:
                 data = json.loads(raw_body.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError):
-                self._send_json(400, {"error": "invalid_json"})
+                self._send_error_response(400, "invalid_json", "O corpo JSON é inválido.")
                 return
             if not isinstance(data, dict) or not isinstance(data.get("message"), str):
-                self._send_json(400, {"error": "message_must_be_a_string"})
+                self._send_error_response(400, "invalid_message", "A mensagem precisa ser texto.")
                 return
             session_id = data.get("session_id") or uuid.uuid4().hex
             if not isinstance(session_id, str) or not SESSION_RE.fullmatch(session_id):
-                self._send_json(400, {"error": "invalid_session_id"})
+                self._send_error_response(400, "invalid_session_id", "Identificador de sessão inválido.")
                 return
             try:
                 answer = agent.respond(session_id, data["message"])
-            except ValueError as exc:
-                self._send_json(400, {"error": str(exc)})
+            except ValueError:
+                self._send_error_response(400, "invalid_message", "Confira a mensagem e tente novamente.")
                 return
-            except ProviderError as exc:
-                self._send_json(502, {"error": str(exc)})
+            except ProviderError:
+                self._send_error_response(502, "provider_unavailable", "O provedor não respondeu em um formato utilizável.")
                 return
             self._send_json(200, {"reply": answer, "session_id": session_id})
 
+        @_guard_handler
         def do_DELETE(self):
             if not self._authorized():
-                self._send_json(401, {"error": "unauthorized"})
+                self._send_error_response(401, "unauthorized", "Acesso não autorizado.")
                 return
             match = re.fullmatch(r"/sessions/([A-Za-z0-9_-]{1,64})", self.path)
             if not match:
-                self._send_json(404, {"error": "not_found"})
+                self._send_error_response(404, "not_found", "Rota não encontrada.")
                 return
             deleted = agent.history.delete(match.group(1))
             self._send_json(200, {"deleted_messages": deleted})
@@ -220,6 +257,10 @@ class BoundedThreadingHTTPServer(ThreadingHTTPServer):
             super().process_request_thread(request, client_address)
         finally:
             self._worker_slots.release()
+
+    def handle_error(self, request, client_address):
+        # Standard library's default prints tracebacks that may contain request data.
+        return
 
 
 def serve(agent: Agent, host: str, port: int) -> None:

@@ -116,7 +116,7 @@ A restauração valida e prepara a cópia antes de tocar no banco. Se já houver
 - `POST /chat` — recebe `{"message":"..."}` e, opcionalmente, `session_id`.
 - `DELETE /sessions/{session_id}` — apaga o histórico daquela sessão.
 
-O servidor aceita apenas conexões locais por padrão. Não o exponha diretamente à internet; para acesso remoto seriam necessárias proteções adicionais e HTTPS.
+Erros da API usam JSON com `error` (código estável) e `message` (texto seguro); falhas internas não retornam exceções, stack traces, conteúdo do provedor ou credenciais. O servidor aceita apenas conexões locais por padrão. Não o exponha diretamente à internet; para acesso remoto seriam necessárias proteções adicionais e HTTPS.
 
 ## Arquitetura e evolução
 

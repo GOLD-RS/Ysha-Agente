@@ -1,3 +1,4 @@
+from contextlib import closing
 import sqlite3
 import tempfile
 import threading
@@ -41,6 +42,7 @@ class AgentTests(unittest.TestCase):
         self.agent = Agent(self.provider, self.history)
 
     def tearDown(self):
+        self.history.close()
         self.temp.cleanup()
 
     def test_saves_conversation_and_reuses_context(self):
@@ -64,13 +66,15 @@ class AgentTests(unittest.TestCase):
 
     def test_existing_database_is_migrated_additively_without_losing_rows(self):
         path = f"{self.temp.name}/old-schema.sqlite3"
-        with sqlite3.connect(path) as db:
-            db.execute("CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL)")
-            db.executemany(
-                "INSERT INTO messages(session_id, role, content, created_at) VALUES(?,?,?,?)",
-                [("legacy", "user", "antes", 1), ("legacy", "assistant", "resposta antiga", 2)],
-            )
+        with closing(sqlite3.connect(path)) as db:
+            with db:
+                db.execute("CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL)")
+                db.executemany(
+                    "INSERT INTO messages(session_id, role, content, created_at) VALUES(?,?,?,?)",
+                    [("legacy", "user", "antes", 1), ("legacy", "assistant", "resposta antiga", 2)],
+                )
         history = HistoryStore(path, limit=2)
+        self.addCleanup(history.close)
         self.assertEqual(history.get("legacy"), [
             {"role": "user", "content": "antes"},
             {"role": "assistant", "content": "resposta antiga"},
@@ -80,6 +84,7 @@ class AgentTests(unittest.TestCase):
 
     def test_full_transcript_is_preserved_while_prompt_context_stays_bounded(self):
         history = HistoryStore(f"{self.temp.name}/full.sqlite3", limit=2)
+        self.addCleanup(history.close)
         provider = FakeProvider([
             {"content": "resposta 1", "tool_calls": []},
             {"content": "resposta 2", "tool_calls": []},
@@ -109,6 +114,7 @@ class AgentTests(unittest.TestCase):
             archive_keep=2,
             archive_batch=2,
         )
+        self.addCleanup(history.close)
         for number in range(3):
             history.add_exchange("archive", f"pergunta {number}", f"resposta {number}")
         self.assertEqual(len(history.get("archive")), 6)
@@ -129,6 +135,7 @@ class AgentTests(unittest.TestCase):
             archive_keep=2,
             archive_batch=2,
         )
+        self.addCleanup(history.close)
         for number in range(3):
             history.add_exchange("corrupt", f"q{number}", f"a{number}")
         with history._connect() as db:

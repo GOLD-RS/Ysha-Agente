@@ -2,6 +2,7 @@
 
 import http.client
 import json
+import math
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -21,6 +22,13 @@ def _reject_non_json_constant(_value: str):
     raise ValueError("non-standard JSON constant")
 
 
+def _finite_json_float(raw: str) -> float:
+    value = float(raw)
+    if not math.isfinite(value):
+        raise ValueError("non-finite JSON number")
+    return value
+
+
 def _unique_json_object(pairs):
     result = {}
     for key, value in pairs:
@@ -36,8 +44,9 @@ def _parse_tool_arguments(raw: str) -> dict:
             raw,
             object_pairs_hook=_unique_json_object,
             parse_constant=_reject_non_json_constant,
+            parse_float=_finite_json_float,
         )
-    except (json.JSONDecodeError, ValueError, TypeError):
+    except (json.JSONDecodeError, ValueError, TypeError, RecursionError):
         raise ProviderError("O provedor retornou argumentos de ferramenta inválidos.") from None
     if not isinstance(value, dict):
         raise ProviderError("Os argumentos da ferramenta precisam ser um objeto JSON.")
@@ -152,12 +161,17 @@ class ChatProvider:
                     raise ProviderError("O provedor retornou um corpo de resposta inválido.")
                 if len(body) > MAX_RESPONSE_BYTES:
                     raise ProviderError("A resposta do provedor excedeu o limite de tamanho permitido.")
-                payload = json.loads(body.decode("utf-8"))
+                payload = json.loads(
+                    body.decode("utf-8"),
+                    object_pairs_hook=_unique_json_object,
+                    parse_constant=_reject_non_json_constant,
+                    parse_float=_finite_json_float,
+                )
         except ProviderError:
             raise
         except HTTPError as exc:
             raise ProviderError(f"O provedor recusou a solicitação (HTTP {exc.code}).") from None
-        except (URLError, TimeoutError, OSError, http.client.HTTPException, json.JSONDecodeError, UnicodeDecodeError):
+        except (URLError, TimeoutError, OSError, http.client.HTTPException, ValueError, TypeError, RecursionError):
             raise ProviderError("Não foi possível obter resposta do provedor; verifique rede e configuração.") from None
 
         return validate_chat_completion(payload)

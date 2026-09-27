@@ -11,6 +11,7 @@ class ChatPageTests(unittest.TestCase):
         self.assertIn("/chat", page)
         self.assertIn("/sessions/", page)
         self.assertIn("history_is_truncated", page)
+        self.assertIn("data.message||data.error", page)
         self.assertIn("AGENT_ACCESS_TOKEN", page)
         self.assertNotIn("https://fonts.googleapis.com", page)
 

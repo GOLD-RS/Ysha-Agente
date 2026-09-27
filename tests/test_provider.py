@@ -59,13 +59,19 @@ class ProviderContractTests(unittest.TestCase):
             response({"role": "assistant", "content": None, "tool_calls": [valid_tool_call("")]}, "tool_calls"),
             response({"role": "assistant", "content": None, "tool_calls": [{**valid_tool_call(), "type": "other"}]}, "tool_calls"),
             response({"role": "assistant", "content": None, "tool_calls": [{"id": "x", "type": "function", "function": []}]}, "tool_calls"),
+            response({"role": "assistant", "content": None, "tool_calls": [{"id": "x", "type": "function", "function": {"name": "calculate"}}]}, "tool_calls"),
+            response({"role": "assistant", "content": None, "tool_calls": [{"id": "x", "type": "function", "function": {"arguments": "{}"}}]}, "tool_calls"),
             response({"role": "assistant", "content": None, "tool_calls": [{"id": "x", "type": "function", "function": {"name": 4, "arguments": "{}"}}]}, "tool_calls"),
             response({"role": "assistant", "content": None, "tool_calls": [{"id": "x", "type": "function", "function": {"name": "calculate", "arguments": {}}}]}, "tool_calls"),
             response({"role": "assistant", "content": None, "tool_calls": [valid_tool_call(arguments="not-json")]}, "tool_calls"),
             response({"role": "assistant", "content": None, "tool_calls": [valid_tool_call(arguments="[]")]}, "tool_calls"),
             response({"role": "assistant", "content": None, "tool_calls": [valid_tool_call(arguments='{"x":1,"x":2}') ]}, "tool_calls"),
             response({"role": "assistant", "content": None, "tool_calls": [valid_tool_call(arguments='{"x":NaN}') ]}, "tool_calls"),
+            response({"role": "assistant", "content": None, "tool_calls": [valid_tool_call(arguments='{"x":1e9999}') ]}, "tool_calls"),
             response({"role": "assistant", "content": None, "tool_calls": [valid_tool_call(), valid_tool_call()]}, "tool_calls"),
+            response({"role": "assistant", "content": None, "tool_calls": [valid_tool_call(f"id-{i}") for i in range(9)]}, "tool_calls"),
+            response({"role": "assistant", "content": None, "tool_calls": [valid_tool_call("x" * 129)]}, "tool_calls"),
+            response({"role": "assistant", "content": None, "tool_calls": [valid_tool_call(arguments="x" * 65_537)]}, "tool_calls"),
             response({"role": "assistant", "content": None, "tool_calls": [valid_tool_call()]}, "length"),
             response({"role": "assistant", "content": "ok"}, "tool_calls"),
         ]
@@ -102,6 +108,27 @@ class ProviderContractTests(unittest.TestCase):
                 provider.complete([], [])
         self.assertNotIn("provider-secret", str(caught.exception))
         self.assertNotIn("internal-secret", str(caught.exception))
+
+    def test_duplicate_keys_in_http_response_are_rejected(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, _limit):
+                return b'{"choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"choices":[]}'
+
+        with patch.dict(os.environ, {
+            "AGENT_API_KEY": "test-key",
+            "AGENT_BASE_URL": "https://api.example.test/v1",
+            "AGENT_MODEL": "test-model",
+        }, clear=True):
+            provider = ChatProvider(Settings.from_env())
+        with patch("termux_agent.provider.urlopen", return_value=FakeResponse()):
+            with self.assertRaises(ProviderError):
+                provider.complete([], [])
 
     def test_valid_http_response_passes_through_contract_validator(self):
         class FakeResponse:
