@@ -1,0 +1,21 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# Termux:Boot executa este script ao iniciar o Android.
+set -eu
+
+PROJECT="$HOME/projetos/agente-geral-termux"
+LOG="$HOME/agente-geral-termux.log"
+mkdir -p "$HOME/projetos"
+
+# Impede suspensão profunda enquanto o agente está ativo (Termux:API opcional).
+if command -v termux-wake-lock >/dev/null 2>&1; then
+  termux-wake-lock || true
+fi
+
+cd "$PROJECT"
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+export PYTHONPATH="$PROJECT/src${PYTHONPATH:+:$PYTHONPATH}"
+nohup python -m termux_agent >>"$LOG" 2>&1 </dev/null &
