@@ -1,6 +1,7 @@
 """API HTTP local para conversar com o agente."""
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import hmac
 import json
 import re
 import uuid
@@ -10,6 +11,10 @@ from .provider import ProviderError
 
 MAX_BODY_BYTES = 64 * 1024
 SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def authorization_valid(provided: str, token: str) -> bool:
+    return not token or hmac.compare_digest(provided, f"Bearer {token}")
 
 
 def make_handler(agent: Agent):
@@ -23,6 +28,12 @@ def make_handler(agent: Agent):
             self.end_headers()
             self.wfile.write(body)
 
+        def _authorized(self) -> bool:
+            return authorization_valid(
+                self.headers.get("Authorization", ""),
+                agent.provider.settings.access_token,
+            )
+
         def do_GET(self):
             if self.path != "/health":
                 self._send_json(404, {"error": "not_found"})
@@ -32,6 +43,9 @@ def make_handler(agent: Agent):
         def do_POST(self):
             if self.path != "/chat":
                 self._send_json(404, {"error": "not_found"})
+                return
+            if not self._authorized():
+                self._send_json(401, {"error": "unauthorized"})
                 return
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -67,6 +81,9 @@ def make_handler(agent: Agent):
             self._send_json(200, {"reply": answer, "session_id": session_id})
 
         def do_DELETE(self):
+            if not self._authorized():
+                self._send_json(401, {"error": "unauthorized"})
+                return
             match = re.fullmatch(r"/sessions/([A-Za-z0-9_-]{1,64})", self.path)
             if not match:
                 self._send_json(404, {"error": "not_found"})
