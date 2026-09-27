@@ -1,24 +1,38 @@
 #!/data/data/com.termux/files/usr/bin/sh
 # Termux:Boot executa este supervisor ao iniciar o Android.
 set -u
+umask 077
 
 PROJECT="${YSHA_PROJECT_DIR:-$HOME/projetos/Ysha-Agente}"
 LOG="$HOME/ysha-agente.log"
+MAX_LOG_BYTES=1048576
 mkdir -p "$HOME/projetos"
+if [ -f "$LOG" ]; then
+  chmod 600 "$LOG" || true
+fi
 cd "$PROJECT" || exit 1
 
+if [ ! -f .env ]; then
+  printf '%s Arquivo .env ausente; rode o setup antes do boot.\n' "$(date -Is)" >>"$LOG"
+  exit 1
+fi
+set -a
+. ./.env
+set +a
+if [ -z "${AGENT_API_KEY:-}" ] || [ -z "${AGENT_BASE_URL:-}" ] || [ -z "${AGENT_MODEL:-}" ]; then
+  printf '%s Configuração de provedor incompleta; rode o setup.\n' "$(date -Is)" >>"$LOG"
+  exit 1
+fi
+export PYTHONPATH="$PROJECT/src${PYTHONPATH:+:$PYTHONPATH}"
 if command -v termux-wake-lock >/dev/null 2>&1; then
   termux-wake-lock || true
 fi
-if [ -f .env ]; then
-  set -a
-  . ./.env
-  set +a
-fi
-export PYTHONPATH="$PROJECT/src${PYTHONPATH:+:$PYTHONPATH}"
 
 # Se o processo cair, tenta iniciá-lo de novo após uma pausa.
 while :; do
+  if [ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -ge "$MAX_LOG_BYTES" ]; then
+    mv -f "$LOG" "$LOG.1"
+  fi
   if python -m termux_agent >>"$LOG" 2>&1; then
     status=0
   else

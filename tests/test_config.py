@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from termux_agent.config import Settings
+from termux_agent.config import Settings, validate_base_url
 
 
 class ConfigTests(unittest.TestCase):
@@ -14,6 +14,22 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(settings.host, "127.0.0.1")
         self.assertEqual(settings.port, 8765)
         self.assertEqual(settings.api_key, "")
+
+    def test_remote_api_keys_require_tls_but_local_http_is_allowed(self):
+        validate_base_url("https://api.example.test/v1")
+        validate_base_url("http://127.0.0.1:1234/v1")
+        validate_base_url("http://[::1]:1234/v1")
+        with self.assertRaises(ValueError):
+            validate_base_url("http://192.168.1.8/v1")
+        with self.assertRaises(ValueError):
+            validate_base_url("https://user:password@example.test/v1")
+        with self.assertRaises(ValueError):
+            validate_base_url("https://example.test/v1?key=secret")
+
+    def test_context_limit_is_normalized_to_complete_turn_pairs(self):
+        with patch.dict(os.environ, {"AGENT_HISTORY_LIMIT": "3"}, clear=True):
+            settings = Settings.from_env()
+        self.assertEqual(settings.history_limit, 2)
 
     def test_provider_and_model_can_be_overridden(self):
         with patch.dict(os.environ, {

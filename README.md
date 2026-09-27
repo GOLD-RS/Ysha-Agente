@@ -7,12 +7,15 @@ Assistente pessoal de IA para Android/Termux. O repositório é público e pode 
 O Ysha funciona como um servidor local de conversa conectado a qualquer provedor que ofereça endpoint compatível com OpenAI Chat Completions e chamadas de ferramentas. Não há provedor obrigatório nem padrão associado a uma empresa; cada pessoa configura seu próprio endpoint, modelo e chave no arquivo local `.env`.
 
 - Servidor local em `127.0.0.1:8765`, com chat web responsivo integrado e sem dependências externas.
-- Histórico SQLite persistente por sessão, limitado às últimas 20 mensagens por padrão.
+- API com limite por cliente, até 8 workers concorrentes, leitura de corpo com timeout e respostas 429/503 quando ocupada.
+- Histórico completo em SQLite por sessão; blocos antigos são compactados, enquanto o prompt usa apenas o contexto recente configurado.
 - Mensagens da mesma sessão processadas em ordem; sessões distintas continuam independentes.
 - Ferramentas locais limitadas à hora e à calculadora segura; não executa comandos nem lê arquivos.
 - Configuração de instalação guiada, inicialização simplificada e opção para Termux:Boot.
 - Chaves e banco de dados ficam fora do Git.
 - Ainda não integra Telegram/WhatsApp e não garante execução 24/7 se o Android encerrar o processo ou faltar bateria/rede.
+
+`AGENT_HISTORY_LIMIT` controla somente quantas mensagens recentes entram no prompt; não apaga a transcrição. Após ultrapassar 500 mensagens ativas por sessão, blocos antigos são comprimidos no mesmo SQLite, preservando o histórico completo e mantendo a parte ativa menor. Isso reduz uso de linhas e espaço repetido, mas ainda não define uma cota rígida para arquivos de arquivo — limites e expiração configuráveis ficam para uma etapa posterior, acompanhados de backup seguro.
 
 ## Requisitos
 
@@ -35,7 +38,7 @@ chmod +x setup-termux.sh start-agent.sh
 ./setup-termux.sh
 ```
 
-O setup cria ou atualiza `.env`, pede a chave API sem exibi-la, oferece configuração genérica de endpoint compatível com OpenAI por padrão e permite escolher uma configuração opcional da Agnes AI. Valida a URL/modelo, protege `.env` com permissão privada e roda os testes. Se já houver provedor e chave configurados, eles são mantidos a menos que você escolha alterá-los. A configuração de Termux:Boot é opcional e só ocorre com sua confirmação.
+O setup cria ou atualiza `.env`, pede a chave API sem exibi-la, oferece configuração genérica de endpoint compatível com OpenAI por padrão e permite escolher uma configuração opcional da Agnes AI. Valida URL/modelo, grava o arquivo atomicamente com permissão privada, faz backup do `.env` anterior como `.env.backup` e roda os testes. Se já houver provedor e chave configurados, eles são mantidos a menos que você escolha alterá-los. A configuração de Termux:Boot é opcional e só ocorre com sua confirmação.
 
 A chave precisa ser criada na conta do provedor de IA. Não a envie no chat, não a publique e não a coloque em um commit. O setup não instala bibliotecas Python externas: o agente usa a biblioteca padrão.
 
@@ -62,7 +65,7 @@ Use o mesmo `session_id` para continuar a conversa. A resposta inclui `reply` e 
 
 ## Configuração da API
 
-No setup, escolha a opção genérica e informe o endpoint-base, o nome exato do modelo e uma chave emitida pelo provedor que você usa. O endpoint precisa seguir o formato OpenAI Chat Completions e aceitar chamadas de ferramentas; isso permite configurar diferentes serviços sem prender o projeto a um deles. A Agnes AI aparece apenas como atalho opcional. Depois de editar `.env`, encerre o processo com Ctrl+C e rode `./start-agent.sh` novamente. Confirme na documentação do provedor o endpoint e o identificador do modelo.
+No setup, escolha a opção genérica e informe o endpoint-base, o nome exato do modelo e uma chave emitida pelo provedor que você usa. O endpoint precisa seguir o formato OpenAI Chat Completions e aceitar chamadas de ferramentas; isso permite configurar diferentes serviços sem prender o projeto a um deles. A Agnes AI aparece apenas como atalho opcional. Endpoints remotos exigem HTTPS; HTTP só é aceito para loopback local, para não enviar a chave em texto aberto. Depois de editar `.env`, encerre o processo com Ctrl+C e rode `./start-agent.sh` novamente. Confirme na documentação do provedor o endpoint e o identificador do modelo.
 
 Preencha `AGENT_API_KEY`, `AGENT_BASE_URL` e `AGENT_MODEL` em `.env`; use os valores e o formato informados pelo provedor escolhido.
 
@@ -76,7 +79,7 @@ Instale Termux:Boot da mesma fonte do Termux e abra o aplicativo uma vez. Rode `
 pkg install -y termux-api
 ```
 
-O supervisor grava logs em `~/ysha-agente.log` e tenta reiniciar o servidor após uma falha. Desative a otimização de bateria para Termux e Termux:Boot. Ainda assim, nenhum script garante 24/7 em todos os aparelhos e condições.
+O supervisor grava logs privados em `~/ysha-agente.log`, mantém no máximo o log atual e um arquivo rotacionado de cerca de 1 MiB cada, e tenta reiniciar o servidor após falhas. Desative a otimização de bateria para Termux e Termux:Boot. Ainda assim, nenhum script garante 24/7 em todos os aparelhos e condições.
 
 ## Atualizar
 
@@ -99,6 +102,13 @@ O setup preserva sua chave, valida o projeto e executa os testes.
 - `DELETE /sessions/{session_id}` — apaga o histórico daquela sessão.
 
 O servidor aceita apenas conexões locais por padrão. Não o exponha diretamente à internet; para acesso remoto seriam necessárias proteções adicionais e HTTPS.
+
+## Arquitetura e evolução
+
+- [Arquitetura atual, fluxo e limites de segurança](docs/ARCHITECTURE.md)
+- [Roadmap técnico priorizado](docs/ROADMAP.md)
+
+Os documentos distinguem o que já existe do que ainda está planejado.
 
 ## Desenvolvimento e validação
 

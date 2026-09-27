@@ -53,7 +53,7 @@ class Agent:
 
     def _respond_locked(self, session_id: str, message: str) -> str:
         messages = [{"role": "system", "content": self.provider.settings.system_prompt}]
-        messages.extend(self.history.get(session_id))
+        messages.extend(self.history.get_recent(session_id))
         messages.append({"role": "user", "content": message})
 
         tool_budget = 8

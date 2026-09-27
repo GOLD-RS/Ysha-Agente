@@ -10,6 +10,7 @@ class ChatPageTests(unittest.TestCase):
         self.assertIn("Ysha Agente", page)
         self.assertIn("/chat", page)
         self.assertIn("/sessions/", page)
+        self.assertIn("history_is_truncated", page)
         self.assertIn("AGENT_ACCESS_TOKEN", page)
         self.assertNotIn("https://fonts.googleapis.com", page)
 

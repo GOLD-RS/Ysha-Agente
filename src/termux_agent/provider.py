@@ -4,7 +4,7 @@ import json
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from .config import Settings
+from .config import Settings, validate_base_url
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
@@ -20,6 +20,10 @@ class ChatProvider:
     def complete(self, messages: list[dict], tools: list[dict]) -> dict:
         if not self.settings.api_key:
             raise ProviderError("Configure AGENT_API_KEY no ambiente antes de conversar.")
+        try:
+            validate_base_url(self.settings.base_url)
+        except ValueError as exc:
+            raise ProviderError(str(exc)) from None
 
         payload = json.dumps({
             "model": self.settings.model,

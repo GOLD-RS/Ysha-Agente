@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import threading
 import time
@@ -47,6 +48,91 @@ class AgentTests(unittest.TestCase):
             {"role": "user", "content": "oi"},
             {"role": "assistant", "content": "eco de teste"},
         ])
+
+    def test_existing_database_is_migrated_additively_without_losing_rows(self):
+        path = f"{self.temp.name}/old-schema.sqlite3"
+        with sqlite3.connect(path) as db:
+            db.execute("CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL)")
+            db.executemany(
+                "INSERT INTO messages(session_id, role, content, created_at) VALUES(?,?,?,?)",
+                [("legacy", "user", "antes", 1), ("legacy", "assistant", "resposta antiga", 2)],
+            )
+        history = HistoryStore(path, limit=2)
+        self.assertEqual(history.get("legacy"), [
+            {"role": "user", "content": "antes"},
+            {"role": "assistant", "content": "resposta antiga"},
+        ])
+        with history._connect() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM message_archives").fetchone()[0], 0)
+
+    def test_full_transcript_is_preserved_while_prompt_context_stays_bounded(self):
+        history = HistoryStore(f"{self.temp.name}/full.sqlite3", limit=2)
+        provider = FakeProvider([
+            {"content": "resposta 1", "tool_calls": []},
+            {"content": "resposta 2", "tool_calls": []},
+            {"content": "resposta 3", "tool_calls": []},
+        ])
+        agent = Agent(provider, history)
+        for message in ("um", "dois", "três"):
+            agent.respond("persistente", message)
+        self.assertEqual(len(history.get("persistente")), 6)
+        self.assertEqual(history.get_recent("persistente", 2), [
+            {"role": "user", "content": "três"},
+            {"role": "assistant", "content": "resposta 3"},
+        ])
+        next_provider = FakeProvider()
+        Agent(next_provider, history).respond("persistente", "quatro")
+        self.assertEqual(next_provider.requests[0][1:], [
+            {"role": "user", "content": "três"},
+            {"role": "assistant", "content": "resposta 3"},
+            {"role": "user", "content": "quatro"},
+        ])
+
+    def test_old_transcript_chunks_are_compressed_without_loss(self):
+        history = HistoryStore(
+            f"{self.temp.name}/archive.sqlite3",
+            limit=2,
+            archive_trigger=4,
+            archive_keep=2,
+            archive_batch=2,
+        )
+        for number in range(3):
+            history.add_exchange("archive", f"pergunta {number}", f"resposta {number}")
+        self.assertEqual(len(history.get("archive")), 6)
+        self.assertEqual(history.get_recent("archive", 2)[-1]["content"], "resposta 2")
+        with history._connect() as db:
+            hot_count = db.execute("SELECT COUNT(*) FROM messages WHERE session_id='archive'").fetchone()[0]
+            archived_count = db.execute("SELECT SUM(message_count) FROM message_archives WHERE session_id='archive'").fetchone()[0]
+        self.assertEqual(hot_count, 4)
+        self.assertEqual(archived_count, 2)
+        self.assertEqual(history.delete("archive"), 6)
+        self.assertEqual(history.get("archive"), [])
+
+    def test_corrupt_archive_is_reported_instead_of_silently_dropped(self):
+        history = HistoryStore(
+            f"{self.temp.name}/corrupt.sqlite3",
+            limit=2,
+            archive_trigger=4,
+            archive_keep=2,
+            archive_batch=2,
+        )
+        for number in range(3):
+            history.add_exchange("corrupt", f"q{number}", f"a{number}")
+        with history._connect() as db:
+            db.execute("UPDATE message_archives SET compressed_payload=? WHERE session_id=?", (b"broken", "corrupt"))
+        with self.assertRaisesRegex(RuntimeError, "bloco compactado inválido"):
+            history.get("corrupt")
+
+    def test_in_memory_history_remains_available_across_operations(self):
+        history = HistoryStore(":memory:", limit=2)
+        try:
+            history.add_exchange("memory", "pergunta", "resposta")
+            self.assertEqual(history.get("memory"), [
+                {"role": "user", "content": "pergunta"},
+                {"role": "assistant", "content": "resposta"},
+            ])
+        finally:
+            history.close()
 
     def test_rejects_empty_and_oversized_messages(self):
         with self.assertRaises(ValueError):

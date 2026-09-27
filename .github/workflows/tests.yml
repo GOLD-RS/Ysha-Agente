@@ -18,5 +18,13 @@ jobs:
           python-version: '3.12'
       - name: Compilar fontes
         run: python -m compileall -q src tests scripts
+      - name: Validar scripts shell
+        run: sh -n setup-termux.sh start-agent.sh termux-boot/start-agent
+      - name: Impedir commit de arquivos locais de segredo
+        run: |
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '^\.env\.example$'; then
+            echo 'Arquivo .env local ou backup não deve ser versionado.'
+            exit 1
+          fi
       - name: Executar testes
         run: PYTHONPATH=src python -m unittest discover -s tests -v

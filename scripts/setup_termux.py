@@ -8,12 +8,15 @@ import re
 import shlex
 import subprocess
 import sys
-from urllib.parse import urlsplit
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV_FILE = ROOT / ".env"
 EXAMPLE_FILE = ROOT / ".env.example"
 ASSIGNMENT = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
+sys.path.insert(0, str(ROOT / "src"))
+from termux_agent.config import validate_base_url  # noqa: E402
+
 PROVIDERS = {
     "1": ("Qualquer provedor OpenAI-compatível", "", ""),
     "2": ("Agnes AI (opcional)", "https://apihub.agnes-ai.com/v1", "agnes-3.0-flash"),
@@ -66,6 +69,40 @@ def update_values(lines: list[str], updates: dict[str, str]) -> list[str]:
         if name not in written:
             output.append(f"{name}={shlex.quote(value)}")
     return output
+
+
+def atomic_private_write(path: Path, content: bytes) -> None:
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f"{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(content)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+        try:
+            directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        except OSError:
+            pass
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def save_env(lines: list[str]) -> None:
+    if ENV_FILE.is_symlink():
+        raise ValueError("Por segurança, .env não pode ser um link simbólico.")
+    if ENV_FILE.exists():
+        if not ENV_FILE.is_file():
+            raise ValueError(".env não é um arquivo regular.")
+        atomic_private_write(ENV_FILE.with_name(".env.backup"), ENV_FILE.read_bytes())
+    content = ("\n".join(lines) + "\n").encode("utf-8")
+    atomic_private_write(ENV_FILE, content)
 
 
 def ask_default(label: str, default: str) -> str:
@@ -150,9 +187,10 @@ def main() -> int:
 
     step(2, "Escolha do provedor", "Use qualquer serviço com Chat Completions e chamadas de ferramentas.")
     base_url, model = choose_provider(current)
-    parsed = urlsplit(base_url)
-    if parsed.scheme not in ("https", "http") or not parsed.netloc:
-        print("URL inválida: informe a URL-base documentada pelo provedor, começando com https:// ou http://.", file=sys.stderr)
+    try:
+        validate_base_url(base_url)
+    except ValueError as exc:
+        print(f"URL inválida: {exc}", file=sys.stderr)
         return 1
     if not model:
         print("O identificador exato do modelo não pode ficar vazio.", file=sys.stderr)
@@ -163,8 +201,10 @@ def main() -> int:
         "AGENT_BASE_URL": base_url,
         "AGENT_MODEL": model,
     }
-    ENV_FILE.write_text("\n".join(update_values(lines, updates)) + "\n", encoding="utf-8")
-    ENV_FILE.chmod(0o600)
+    had_env = ENV_FILE.exists()
+    save_env(update_values(lines, updates))
+    if had_env:
+        print("Configuração anterior preservada em .env.backup.")
     (ROOT / "data").mkdir(exist_ok=True)
 
     step(3, "Conferindo a instalação", "Compilação e testes rápidos; nenhum segredo será impresso.")
@@ -197,6 +237,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (OSError, subprocess.CalledProcessError) as exc:
+    except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         print(f"Configuração/testes não concluídos: {exc}", file=sys.stderr)
         raise SystemExit(1)
