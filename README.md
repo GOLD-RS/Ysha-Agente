@@ -15,7 +15,7 @@ O Ysha funciona como um servidor local de conversa conectado a qualquer provedor
 - Chaves e banco de dados ficam fora do Git.
 - Ainda não integra Telegram/WhatsApp e não garante execução 24/7 se o Android encerrar o processo ou faltar bateria/rede.
 
-`AGENT_HISTORY_LIMIT` controla somente quantas mensagens recentes entram no prompt; não apaga a transcrição. Após ultrapassar 500 mensagens ativas por sessão, blocos antigos são comprimidos no mesmo SQLite, preservando o histórico completo e mantendo a parte ativa menor. Isso reduz uso de linhas e espaço repetido, mas ainda não define uma cota rígida para arquivos de arquivo — limites e expiração configuráveis ficam para uma etapa posterior, acompanhados de backup seguro.
+`AGENT_HISTORY_LIMIT` controla somente quantas mensagens recentes entram no prompt; não apaga a transcrição. Após ultrapassar 500 mensagens ativas por sessão, blocos antigos são comprimidos no mesmo SQLite, preservando o histórico completo e mantendo a parte ativa menor. Isso reduz uso de linhas e espaço repetido, mas ainda não define uma cota rígida para arquivos de arquivo — limites e expiração configuráveis ficam para uma etapa posterior. Já existe um utilitário de backup/restore seguro, descrito abaixo.
 
 ## Requisitos
 
@@ -94,6 +94,19 @@ git pull --ff-only
 ```
 
 O setup preserva sua chave, valida o projeto e executa os testes.
+
+## Backup e restauração do histórico
+
+Use o utilitário Python do repositório, que lê `.env` como dados e usa a API de backup do SQLite:
+
+```sh
+python3 scripts/db_maintenance.py backup
+python3 scripts/db_maintenance.py restore "/caminho/para/o-backup.sqlite3"
+```
+
+O backup cria um nome novo ao lado do banco, recusa sobrescrever qualquer arquivo existente, valida `PRAGMA integrity_check` e o esquema esperado e grava a cópia com permissão `0600`. Pode ser executado enquanto o agente está ativo; SQLite captura um snapshot consistente, inclusive com WAL.
+
+A restauração valida e prepara a cópia antes de tocar no banco. Se já houver memória, cria primeiro um backup automático `before-restore` e imprime o caminho. Exige digitar `RESTAURAR`; `--yes` é aceito apenas como confirmação explícita para automação. O processo obtém bloqueio exclusivo e recusa restaurar enquanto o agente estiver aberto. Se a validação falhar, tenta retornar ao snapshot anterior; a cópia anterior permanece guardada para recuperação manual.
 
 ## Rotas locais
 

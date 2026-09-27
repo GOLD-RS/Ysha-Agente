@@ -11,7 +11,7 @@ Roadmap incremental para evoluir o produto sem trocar a base funcional. Uma etap
 - [x] Limitar concorrência HTTP, aplicar timeout de leitura e rate limiting por cliente.
 - [ ] Padronizar erros e validar rigorosamente todas as respostas/argumentos do provedor.
 - [x] Ler `.env` como dados com parser compartilhado por início manual e Termux:Boot; sem sourcing, expansão ou execução.
-- [ ] Adicionar backup/restore do SQLite com `sqlite3` backup API, teste de integridade e recuperação de falha.
+- [x] Backup/restore do SQLite via API `sqlite3`, com integrity check, arquivos privados, destino sem sobrescrita, confirmação e salvaguarda antes de restaurar.
 
 ## P1 — contexto, provedores, ferramentas e observabilidade
 
@@ -35,7 +35,7 @@ Roadmap incremental para evoluir o produto sem trocar a base funcional. Uma etap
 ## P3 — operações e experiência diária
 
 - [ ] Interface: lista e renomeação de sessões, estados reais de saúde, streaming, cancelamento, apresentação segura de tools e acessibilidade.
-- [ ] Comandos `status`, `doctor`, `stop`, `restart`, `update`, `backup`, `restore` e `uninstall` idempotentes.
+- [ ] Comandos `status`, `doctor`, `stop`, `restart`, `update` e `uninstall` idempotentes (backup/restore SQLite existem em `scripts/db_maintenance.py`; os demais ainda faltam).
 - [ ] Atualizador com detecção de mudanças locais, backup, arquivos gerenciados, validação e rollback; nunca tocar em `.env`, memória ou workspace sem consentimento.
 - [ ] Supervisor Termux com parada explícita, prevenção de duplicatas e limites de reinício (log privado com rotação básica já foi implementado).
 - [ ] CI com lint, análise estática, detecção de segredos, verificação de shell e cobertura sem API paga.

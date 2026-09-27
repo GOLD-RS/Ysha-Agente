@@ -9,6 +9,7 @@ Este documento descreve o código que existe agora; não trata itens planejados 
 - `agent.py`: monta o prompt com contexto recente, executa o ciclo limitado de tool calling e serializa requisições da mesma sessão.
 - `provider.py`: cliente síncrono para a forma OpenAI Chat Completions, com timeout e limite de resposta.
 - `history.py`: persistência SQLite, transcript por sessão e arquivamento comprimido de blocos antigos; o contexto de modelo é limitado separadamente.
+- `db_maintenance.py`: API SQLite de snapshot/verificação/restauração, bloqueio entre processos e salvaguarda antes de restore.
 - `tools.py`: dispatch fixo para hora local e calculadora AST segura.
 - `server.py`: `ThreadingHTTPServer`, autenticação Bearer opcional, JSON local e roteamento da interface web.
 - `web/index.html`: interface estática, sem bibliotecas frontend/CDN, servida pelo próprio processo.
@@ -35,4 +36,4 @@ Este documento descreve o código que existe agora; não trata itens planejados 
 
 ## Limites ainda presentes
 
-Provedor único por processo; sem descoberta/fallback/retry/streaming. Contexto apenas recente e sem recuperação semântica. Arquivos arquivados são preservados em SQLite comprimido, mas não há cota rígida, busca FTS, expiração, backup/restore automatizado ou consolidação de fatos. API agora limita a taxa de chat por IP, o número de workers e o tempo de leitura do corpo; ainda não cancela chamadas ao provedor iniciadas. A interface ainda não tem lista/renomeação de sessões, streaming, cancelamento nem visualização de tools. Não existem plugins, skills, MCP, scheduler, subagentes, shell, Android API adapters ou trilha de auditoria estruturada.
+Provedor único por processo; sem descoberta/fallback/retry/streaming. Contexto apenas recente e sem recuperação semântica. Arquivos arquivados são preservados em SQLite comprimido, mas não há cota rígida, busca FTS, expiração ou consolidação de fatos. O utilitário de backup/restore usa snapshot SQLite, integrity check, arquivo privado, recusa sobrescrita de backup e cria salvaguarda automática antes de restaurar; restore exige o agente parado e confirmação explícita. API agora limita a taxa de chat por IP, o número de workers e o tempo de leitura do corpo; ainda não cancela chamadas ao provedor iniciadas. A interface ainda não tem lista/renomeação de sessões, streaming, cancelamento nem visualização de tools. Não existem plugins, skills, MCP, scheduler, subagentes, shell, Android API adapters ou trilha de auditoria estruturada.
