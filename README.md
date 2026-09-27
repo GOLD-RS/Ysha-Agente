@@ -39,9 +39,12 @@ nano .env
 
 Edite `AGENT_API_KEY` e, se necessário, `AGENT_BASE_URL` e `AGENT_MODEL`. Não publique nem envie seu arquivo `.env`.
 
-Inicie manualmente:
+Inicie manualmente (carregando as variáveis do arquivo `.env`):
 
 ```sh
+set -a
+. ./.env
+set +a
 PYTHONPATH=src python -m termux_agent
 ```
 
