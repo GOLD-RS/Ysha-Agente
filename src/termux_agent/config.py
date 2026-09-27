@@ -7,6 +7,7 @@ import os
 @dataclass(frozen=True)
 class Settings:
     api_key: str
+    access_token: str
     base_url: str
     model: str
     host: str
@@ -19,6 +20,7 @@ class Settings:
     def from_env(cls) -> "Settings":
         return cls(
             api_key=os.getenv("AGENT_API_KEY", "").strip(),
+            access_token=os.getenv("AGENT_ACCESS_TOKEN", "").strip(),
             base_url=os.getenv("AGENT_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
             model=os.getenv("AGENT_MODEL", "gpt-4o-mini"),
             host=os.getenv("AGENT_HOST", "127.0.0.1"),
