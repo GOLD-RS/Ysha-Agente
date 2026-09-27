@@ -2,11 +2,14 @@
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import re
+import uuid
 
 from .agent import Agent
 from .provider import ProviderError
 
 MAX_BODY_BYTES = 64 * 1024
+SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 def make_handler(agent: Agent):
@@ -24,7 +27,7 @@ def make_handler(agent: Agent):
             if self.path != "/health":
                 self._send_json(404, {"error": "not_found"})
                 return
-            self._send_json(200, {"status": "ok", "version": "0.1.0"})
+            self._send_json(200, {"status": "ok", "version": "0.2.0", "memory": "sqlite"})
 
         def do_POST(self):
             if self.path != "/chat":
@@ -46,22 +49,32 @@ def make_handler(agent: Agent):
             except (UnicodeDecodeError, json.JSONDecodeError):
                 self._send_json(400, {"error": "invalid_json"})
                 return
-            message = data.get("message") if isinstance(data, dict) else None
-            if not isinstance(message, str):
+            if not isinstance(data, dict) or not isinstance(data.get("message"), str):
                 self._send_json(400, {"error": "message_must_be_a_string"})
                 return
+            session_id = data.get("session_id") or uuid.uuid4().hex
+            if not isinstance(session_id, str) or not SESSION_RE.fullmatch(session_id):
+                self._send_json(400, {"error": "invalid_session_id"})
+                return
             try:
-                answer = agent.respond(message)
+                answer = agent.respond(session_id, data["message"])
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)})
                 return
             except ProviderError as exc:
                 self._send_json(502, {"error": str(exc)})
                 return
-            self._send_json(200, {"reply": answer})
+            self._send_json(200, {"reply": answer, "session_id": session_id})
+
+        def do_DELETE(self):
+            match = re.fullmatch(r"/sessions/([A-Za-z0-9_-]{1,64})", self.path)
+            if not match:
+                self._send_json(404, {"error": "not_found"})
+                return
+            deleted = agent.history.delete(match.group(1))
+            self._send_json(200, {"deleted_messages": deleted})
 
         def log_message(self, fmt, *args):
-            # Evita registrar conteúdo de conversas nos logs por padrão.
             return
 
     return Handler
@@ -70,10 +83,10 @@ def make_handler(agent: Agent):
 def serve(agent: Agent, host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), make_handler(agent))
     server.daemon_threads = True
-    print(f"Agente ativo em http://{host}:{port} (Ctrl+C para encerrar)", flush=True)
+    print(f"Ysha Agente ativo em http://{host}:{port} (Ctrl+C para encerrar)", flush=True)
     try:
         server.serve_forever(poll_interval=0.5)
     except KeyboardInterrupt:
-        print("\nEncerrando agente...", flush=True)
+        print("\nEncerrando Ysha Agente...", flush=True)
     finally:
         server.server_close()
