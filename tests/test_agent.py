@@ -1,4 +1,6 @@
 import tempfile
+import threading
+import time
 import unittest
 
 from termux_agent.agent import Agent
@@ -16,6 +18,17 @@ class FakeProvider:
     def complete(self, messages, tools):
         self.requests.append(messages)
         return self.messages.pop(0)
+
+
+class SlowProvider(FakeProvider):
+    def __init__(self):
+        super().__init__()
+        self.requests = []
+
+    def complete(self, messages, tools):
+        self.requests.append(list(messages))
+        time.sleep(0.04)
+        return {"content": "resposta", "tool_calls": []}
 
 
 class AgentTests(unittest.TestCase):
@@ -58,6 +71,25 @@ class AgentTests(unittest.TestCase):
         self.agent.respond("apagar", "olá")
         self.assertEqual(self.history.delete("apagar"), 2)
         self.assertEqual(self.history.get("apagar"), [])
+
+    def test_parallel_requests_for_same_session_keep_ordered_context(self):
+        provider = SlowProvider()
+        agent = Agent(provider, self.history)
+        start = threading.Barrier(3)
+
+        def send(text):
+            start.wait()
+            agent.respond("shared", text)
+
+        threads = [threading.Thread(target=send, args=(word,)) for word in ("um", "dois")]
+        for thread in threads:
+            thread.start()
+        start.wait()
+        for thread in threads:
+            thread.join(timeout=2)
+        self.assertTrue(all(not thread.is_alive() for thread in threads))
+        self.assertTrue(any(any(item["role"] == "assistant" for item in req) for req in provider.requests[1:]))
+        self.assertEqual(agent._session_locks, {})
 
 
 class SecurityTests(unittest.TestCase):
