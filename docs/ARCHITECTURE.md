@@ -6,12 +6,16 @@ Este documento descreve o código que existe agora; não trata itens planejados 
 
 - `src/termux_agent/__main__.py`: valida configuração e inicializa servidor, provedor, histórico e agente.
 - `config.py`: interpreta `.env` sem executar conteúdo, lê variáveis de ambiente e valida configuração/endpoints.
-- `agent.py`: monta o prompt com contexto recente, executa o ciclo limitado de tool calling e serializa requisições da mesma sessão.
-- `provider.py`: cliente síncrono para Chat Completions, com timeout/limite de resposta, validação do envelope e normalização estrita de mensagem, chamadas, identificadores e argumentos JSON.
-- `history.py`: persistência SQLite, transcript por sessão e arquivamento comprimido de blocos antigos; o contexto de modelo é limitado separadamente.
+- `agent.py`: orquestra um turno e o ciclo limitado de tool calling por interfaces, sem montar contexto, adquirir lock de sessão nem executar ferramentas diretamente.
+- `provider.py`: contrato `Provider` e cliente síncrono Chat Completions, com validação estrita de envelope, mensagens, chamadas, IDs e argumentos JSON.
+- `context.py`: monta instruções, histórico recente e mensagem nova; valida as entradas do backend de memória.
+- `sessions.py`: serializa turnos da mesma sessão, mantendo sessões diferentes independentes.
+- `memory.py`: contrato mínimo de memória (`get_recent`, `add_exchange`, `delete`).
+- `history.py`: implementação SQLite desse contrato, transcript e arquivamento comprimido de blocos antigos.
+- `policy.py`: allowlist/esquemas das ferramentas atuais; rejeita nomes e argumentos fora da política.
+- `tools.py`: implementação fixa de hora local e calculadora AST segura.
 - `db_maintenance.py`: API SQLite de snapshot/verificação/restauração, bloqueio entre processos e salvaguarda antes de restore.
-- `tools.py`: dispatch fixo para hora local e calculadora AST segura.
-- `server.py`: `ThreadingHTTPServer`, autenticação Bearer opcional, JSON local, roteamento da interface web e camada de erros com códigos estáveis/mensagens genéricas.
+- `server.py`: `ThreadingHTTPServer`, autenticação Bearer injetada pela composição, JSON local, UI e erros genéricos com códigos estáveis.
 - `web/index.html`: interface estática, sem bibliotecas frontend/CDN, servida pelo próprio processo.
 - `scripts/`, `setup-termux.sh`, `start-agent.sh`, `termux-boot/`: configuração, início e supervisor de boot.
 - `tests/`: testes unitários de agente, banco, setup, configuração e existência da interface; GitHub Actions compila e executa a suíte.
@@ -19,11 +23,12 @@ Este documento descreve o código que existe agora; não trata itens planejados 
 ## Caminho de uma mensagem
 
 1. O navegador envia mensagem e identificador de sessão para `POST /chat`.
-2. `server.py` valida método, caminho, autenticação, tamanho e JSON.
-3. `Agent.respond` valida sessão/mensagem e bloqueia concorrência somente para aquela sessão.
-4. `history.py` fornece um sufixo limitado da conversa; o restante permanece no SQLite e blocos antigos são compactados.
-5. `provider.py` envia o pedido ao endpoint configurado; a resposta pode incluir as duas ferramentas seguras atuais.
-6. O agente devolve resultado e persiste o par usuário/assistente.
+2. `server.py` valida método, caminho, token, tamanho e JSON sem depender do provider.
+3. `Agent.respond` valida sessão/mensagem e usa `SessionCoordinator` para serializar a mesma sessão.
+4. `ContextBuilder` combina instrução, mensagens recentes da interface `ConversationMemory` e a nova mensagem.
+5. `Provider.complete` recebe o pedido; o adapter atual valida Chat Completions e pode devolver chamadas de ferramentas.
+6. `ToolPolicy` confere nome/schema e só então despacha para as implementações seguras em `tools.py`.
+7. O agente devolve texto final e persiste o par usuário/assistente pelo contrato de memória.
 
 ## Fronteiras de segurança reais
 

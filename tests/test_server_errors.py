@@ -2,18 +2,15 @@ import json
 import socket
 import threading
 import unittest
-from types import SimpleNamespace
-
 from termux_agent.provider import ProviderError
 from termux_agent.server import make_handler
 
 
 class FakeAgent:
     def __init__(self, *, response_error=None, history_error=None):
-        self.provider = SimpleNamespace(settings=SimpleNamespace(access_token=""))
         self.response_error = response_error
         self.history_error = history_error
-        self.history = self
+        self.memory = self
 
     def respond(self, _session_id, _message):
         if self.response_error:
@@ -98,6 +95,13 @@ class ServerErrorTests(unittest.TestCase):
         self.assertEqual(status, 405)
         self.assertEqual(payload["error"], "method_not_allowed")
         self.assertIn("message", payload)
+
+    def test_server_auth_token_is_injected_without_provider_settings_coupling(self):
+        handler = make_handler(FakeAgent(), access_token="local-secret")
+        request = b"GET /sessions/test HTTP/1.0\r\n\r\n"
+        status, payload = send_request(handler, request)
+        self.assertEqual(status, 401)
+        self.assertEqual(payload["error"], "unauthorized")
 
     def test_bad_json_uses_stable_error_code_and_message(self):
         handler = make_handler(FakeAgent())

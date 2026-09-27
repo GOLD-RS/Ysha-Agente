@@ -195,7 +195,7 @@ class AgentTests(unittest.TestCase):
             thread.join(timeout=2)
         self.assertTrue(all(not thread.is_alive() for thread in threads))
         self.assertTrue(any(any(item["role"] == "assistant" for item in req) for req in provider.requests[1:]))
-        self.assertEqual(agent._session_locks, {})
+        self.assertEqual(agent.sessions.active_sessions, 0)
 
 
 class SecurityTests(unittest.TestCase):

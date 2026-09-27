@@ -19,11 +19,12 @@ def main() -> None:
     except ValueError as exc:
         raise SystemExit(str(exc)) from None
     with DatabaseLock(settings.database_path):
-        history = HistoryStore(settings.database_path, settings.history_limit)
+        memory = HistoryStore(settings.database_path, settings.history_limit)
         try:
-            serve(Agent(ChatProvider(settings), history), settings.host, settings.port)
+            agent = Agent(ChatProvider(settings), memory, system_prompt=settings.system_prompt)
+            serve(agent, settings.host, settings.port, settings.access_token)
         finally:
-            history.close()
+            memory.close()
 
 
 if __name__ == "__main__":

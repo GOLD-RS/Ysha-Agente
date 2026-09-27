@@ -3,6 +3,7 @@
 import http.client
 import json
 import math
+from typing import Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -125,6 +126,11 @@ def validate_chat_completion(payload) -> dict:
     if finish_reason in ("length", "content_filter") and has_calls:
         raise ProviderError("A resposta do provedor foi interrompida durante uma chamada de ferramenta.")
     return message
+
+
+class Provider(Protocol):
+    def complete(self, messages: list[dict], tools: list[dict]) -> dict:
+        ...
 
 
 class ChatProvider:

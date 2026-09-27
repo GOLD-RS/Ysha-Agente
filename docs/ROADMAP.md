@@ -16,7 +16,8 @@ Roadmap incremental para evoluir o produto sem trocar a base funcional. Uma etap
 
 ## P1 — contexto, provedores, ferramentas e observabilidade
 
-- [ ] Separar interfaces de provider, contexto, sessão, memória e política sem quebrar o endpoint e o banco atuais.
+- [x] Criar interfaces separadas para provider, contexto, sessão, memória e política, mantendo endpoint, formato SQLite e comportamento existentes.
+- [ ] Evoluir os contratos para provider manager/streaming, recuperação de contexto e persistência sem acoplamento à implementação SQLite atual.
 - [ ] Gerenciar vários provedores/modelos por configuração; retry/backoff seletivo, fallback e limites de custo/tempo.
 - [ ] Implementar streaming/cancelamento e normalização de tool calling entre formatos, com testes sem chamadas pagas.
 - [ ] Evoluir memória com FTS5 detectado em runtime e fallback SQLite, busca por relevância, metadados, resumo e deduplicação.

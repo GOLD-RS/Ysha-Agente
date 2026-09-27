@@ -69,7 +69,7 @@ def _guard_handler(method):
     return guarded
 
 
-def make_handler(agent: Agent):
+def make_handler(agent: Agent, access_token: str = ""):
     rate_limiter = SlidingWindowRateLimiter()
 
     class Handler(BaseHTTPRequestHandler):
@@ -111,7 +111,7 @@ def make_handler(agent: Agent):
         def _authorized(self) -> bool:
             return authorization_valid(
                 self.headers.get("Authorization", ""),
-                agent.provider.settings.access_token,
+                access_token,
             )
 
         @_guard_handler
@@ -141,7 +141,7 @@ def make_handler(agent: Agent):
                 if not self._authorized():
                     self._send_error_response(401, "unauthorized", "Acesso não autorizado.")
                     return
-                recent = agent.history.get_recent(match.group(1), UI_HISTORY_LIMIT + 1)
+                recent = agent.memory.get_recent(match.group(1), UI_HISTORY_LIMIT + 1)
                 truncated = len(recent) > UI_HISTORY_LIMIT
                 self._send_json(200, {
                     "messages": recent[-UI_HISTORY_LIMIT:],
@@ -209,7 +209,7 @@ def make_handler(agent: Agent):
             if not match:
                 self._send_error_response(404, "not_found", "Rota não encontrada.")
                 return
-            deleted = agent.history.delete(match.group(1))
+            deleted = agent.memory.delete(match.group(1))
             self._send_json(200, {"deleted_messages": deleted})
 
         def log_message(self, fmt, *args):
@@ -263,8 +263,8 @@ class BoundedThreadingHTTPServer(ThreadingHTTPServer):
         return
 
 
-def serve(agent: Agent, host: str, port: int) -> None:
-    server = BoundedThreadingHTTPServer((host, port), make_handler(agent))
+def serve(agent: Agent, host: str, port: int, access_token: str = "") -> None:
+    server = BoundedThreadingHTTPServer((host, port), make_handler(agent, access_token))
     address = f"[{host}]" if ":" in host else host
     print(f"Ysha Agente ativo em http://{address}:{port}", flush=True)
     print(f"Abra http://{address}:{port}/ no navegador para conversar. Ctrl+C encerra.", flush=True)
