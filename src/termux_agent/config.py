@@ -21,8 +21,8 @@ class Settings:
         return cls(
             api_key=os.getenv("AGENT_API_KEY", "").strip(),
             access_token=os.getenv("AGENT_ACCESS_TOKEN", "").strip(),
-            base_url=os.getenv("AGENT_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
-            model=os.getenv("AGENT_MODEL", "gpt-4o-mini"),
+            base_url=os.getenv("AGENT_BASE_URL", "https://apihub.agnes-ai.com/v1").rstrip("/"),
+            model=os.getenv("AGENT_MODEL", "agnes-3.0-flash"),
             host=os.getenv("AGENT_HOST", "127.0.0.1"),
             port=int(os.getenv("AGENT_PORT", "8765")),
             system_prompt=os.getenv(

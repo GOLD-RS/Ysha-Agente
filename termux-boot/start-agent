@@ -2,7 +2,7 @@
 # Termux:Boot executa este supervisor ao iniciar o Android.
 set -u
 
-PROJECT="$HOME/projetos/Ysha-Agente"
+PROJECT="${YSHA_PROJECT_DIR:-$HOME/projetos/Ysha-Agente}"
 LOG="$HOME/ysha-agente.log"
 mkdir -p "$HOME/projetos"
 cd "$PROJECT" || exit 1

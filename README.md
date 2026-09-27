@@ -1,97 +1,111 @@
 # Ysha Agente
 
-Um agente pessoal de IA pensado para rodar continuamente em Android com Termux. O projeto busca combinar a ideia de um agente extensível com ferramentas e automações, inspirado nas capacidades de projetos como OpenClaw e Hermes, mas com implementação própria.
+Assistente pessoal de IA para Android/Termux. O repositório é público e pode ser clonado sem conta GitHub. O projeto não usa números de versão ou releases numeradas: a referência de instalação é o conteúdo atual da branch `main`.
 
-> **Estado:** protótipo em evolução. Esta versão oferece uma API local de conversa conectada a um provedor compatível com Chat Completions. Inclui histórico local SQLite por sessão e ferramentas locais limitadas (hora e calculadora); ainda não executa comandos no Android nem integra canais externos.
+## Estado atual
 
-## O que já funciona
+O Ysha funciona como um servidor local de conversa conectado a uma API compatível com OpenAI Chat Completions. A configuração inicial usa Agnes AI (`agnes-3.0-flash`), mas o provedor pode ser trocado no arquivo local `.env`.
 
-- Servidor HTTP persistente em `127.0.0.1:8765`.
-- `GET /health` para verificar se está ativo.
-- `POST /chat` para conversar com um modelo configurado, com contexto persistido por sessão.
-- Serialização por sessão: mensagens simultâneas preservam a ordem do contexto sem bloquear sessões diferentes.
-- Ferramentas limitadas: consulta de hora local e calculadora protegida por análise sintática (sem execução de código).
-- `DELETE /sessions/{session_id}` para apagar o histórico daquela sessão.
-- Supervisor do Termux:Boot: tenta reiniciar o processo após falhas, aguardando 10 segundos.
-- Configuração por variáveis de ambiente; segredo de API fora do Git.
-- Script inicial para Termux:Boot e solicitação de wakelock.
-- Testes unitários sem depender de uma chave real.
+- Servidor local em `127.0.0.1:8765`.
+- Histórico SQLite persistente por sessão, limitado às últimas 20 mensagens por padrão.
+- Mensagens da mesma sessão processadas em ordem; sessões distintas continuam independentes.
+- Ferramentas locais limitadas à hora e à calculadora segura; não executa comandos nem lê arquivos.
+- Configuração de instalação guiada, inicialização simplificada e opção para Termux:Boot.
+- Chaves e banco de dados ficam fora do Git.
+- Ainda não integra Telegram/WhatsApp e não garante execução 24/7 se o Android encerrar o processo ou faltar bateria/rede.
 
 ## Requisitos
 
-- Android com [Termux](https://termux.dev/) instalado (prefira instalar pelo F-Droid ou GitHub oficial).
-- Python 3.10 ou mais recente.
-- Uma chave de API de um provedor compatível com o endpoint Chat Completions.
-- Para iniciar junto com o aparelho: aplicativos Termux:Boot e (opcionalmente, para wakelock) Termux:API.
+- Android com Termux instalado por uma fonte confiável.
+- Python 3.10 ou mais recente; o setup instala Python pelo `pkg` se necessário.
+- Chave de API do Agnes AI ou de outro provedor compatível com Chat Completions e chamadas de ferramentas.
 
-## Instalação no Termux
+## Instalação guiada no Termux
+
+Instale Termux de uma fonte confiável, como F-Droid ou o GitHub oficial. No Termux, execute:
 
 ```sh
-pkg update -y && pkg install -y git python
-# Opcional: instale também o app Termux:API e seu pacote para usar wakelock
-pkg install -y termux-api
-mkdir -p ~/projetos && cd ~/projetos
+pkg update -y
+pkg install -y git python
+mkdir -p ~/projetos
+cd ~/projetos
 git clone https://github.com/GOLD-RS/Ysha-Agente.git
 cd Ysha-Agente
-cp .env.example .env
-nano .env
+chmod +x setup-termux.sh start-agent.sh
+./setup-termux.sh
 ```
 
-Edite `AGENT_API_KEY` e, se necessário, `AGENT_BASE_URL` e `AGENT_MODEL`. Não publique nem envie seu arquivo `.env`.
+O setup cria ou atualiza `.env`, pede a chave API sem exibi-la, sugere Agnes 3.0 Flash por padrão, valida a URL/modelo, protege `.env` com permissão privada e roda os testes. Se já houver uma chave salva, ela é mantida a menos que você escolha trocá-la. A configuração de Termux:Boot é opcional e o setup só a instala se você confirmar.
 
-Inicie manualmente (carregando as variáveis do arquivo `.env`):
+A chave precisa ser criada na conta do provedor de IA. Não a envie no chat, não a publique e não a coloque em um commit. O setup não instala bibliotecas Python externas: o agente usa a biblioteca padrão.
+
+### Iniciar e testar
+
+Inicie o servidor em primeiro plano:
 
 ```sh
-set -a
-. ./.env
-set +a
-PYTHONPATH=src python -m termux_agent
+./start-agent.sh
 ```
 
-Em outra sessão do Termux, teste:
+Deixe essa sessão aberta. Em uma segunda sessão do Termux, verifique o serviço e envie uma mensagem:
 
 ```sh
 curl http://127.0.0.1:8765/health
 curl -X POST http://127.0.0.1:8765/chat \
   -H 'Content-Type: application/json' \
-  -d '{"message":"Oi!"}'
+  -d '{"message":"Quanto é (8+4)*3?","session_id":"teste"}'
 ```
 
-## Execução contínua e início no boot
+Use o mesmo `session_id` para continuar a conversa. A resposta inclui `reply` e `session_id`. O health check informa apenas o estado e o backend de memória.
 
-Instale o aplicativo Termux:Boot da mesma fonte do Termux e abra-o uma vez. Depois copie o script de inicialização para a pasta de boot:
+## Configuração da API
 
-```sh
-mkdir -p ~/.termux/boot
-cp termux-boot/start-agent ~/.termux/boot/start-agent
-chmod +x ~/.termux/boot/start-agent
+O setup usa por padrão os dados publicados pela Agnes AI para Agnes 3.0 Flash:
+
+```env
+AGENT_BASE_URL=https://apihub.agnes-ai.com/v1
+AGENT_MODEL=agnes-3.0-flash
 ```
 
-O script supervisiona o processo, tenta reiniciá-lo após falhas, grava saída em `~/ysha-agente.log` e solicita `termux-wake-lock` quando o comando estiver disponível. No Android, desative a otimização de bateria para Termux e Termux:Boot. **Nenhum app consegue garantir disponibilidade 24/7** se o sistema encerrar o processo, faltar bateria ou internet.
+Esses valores podem ser alterados em `.env` para outro provedor compatível com Chat Completions e chamadas de ferramentas. Depois de editar `.env`, encerre o processo com Ctrl+C e rode `./start-agent.sh` novamente. Confira no painel do provedor o nome exato do modelo e o formato do endpoint.
 
-## API local
+Variáveis adicionais incluem `AGENT_HOST`, `AGENT_PORT`, `AGENT_ACCESS_TOKEN`, `AGENT_DB_PATH` e `AGENT_HISTORY_LIMIT`. Por segurança, mantenha `AGENT_HOST=127.0.0.1`. Um token é opcional no loopback; se configurar `AGENT_ACCESS_TOKEN`, inclua `Authorization: Bearer <token>` nas chamadas protegidas.
 
-- `GET /health` → estado do processo.
-- `POST /chat` com JSON `{"message":"..."}` → resposta e `session_id`; envie esse `session_id` nas mensagens seguintes para manter o contexto.
-- `DELETE /sessions/{session_id}` remove o histórico local da sessão.
-- O servidor escuta apenas em `127.0.0.1`; não o exponha diretamente à internet.
+## Início automático com o Android
 
-## Memória e segurança
-
-O histórico é salvo localmente em `data/ysha-agent.sqlite3` (ou `AGENT_DB_PATH`) e limitado às últimas 20 mensagens por sessão (`AGENT_HISTORY_LIMIT`). Envie `session_id` no JSON para retomar uma sessão; omita para iniciar uma nova. Apague uma sessão com `DELETE /sessions/{session_id}`. O banco pode conter informações pessoais: proteja o aparelho e faça backup somente se desejar.
-
-No loopback, a API não exige autenticação por padrão. Se `AGENT_ACCESS_TOKEN` estiver definido, envie `Authorization: Bearer <token>` nas chamadas de conversa e exclusão. Para escutar fora de `127.0.0.1`, a inicialização exige um token; ainda assim, não exponha o serviço diretamente à internet sem HTTPS e uma camada de acesso adequada. As ferramentas atuais não executam comandos, não acessam arquivos e não fazem ações externas. Android pode encerrar processos em segundo plano; 24/7 não é garantido apenas pelo app.
-
-## Desenvolvimento
+Instale Termux:Boot da mesma fonte do Termux e abra o aplicativo uma vez. Rode `./setup-termux.sh` e confirme a opção de início automático. Para solicitar wakelock, instale também o aplicativo Termux:API e o pacote `termux-api`:
 
 ```sh
+pkg install -y termux-api
+```
+
+O supervisor grava logs em `~/ysha-agente.log` e tenta reiniciar o servidor após uma falha. Desative a otimização de bateria para Termux e Termux:Boot. Ainda assim, nenhum script garante 24/7 em todos os aparelhos e condições.
+
+## Atualizar
+
+Pare o servidor com Ctrl+C antes de atualizar:
+
+```sh
+cd ~/projetos/Ysha-Agente
+git pull --ff-only
+./setup-termux.sh
+```
+
+O setup preserva sua chave, valida o projeto e executa os testes.
+
+## Rotas locais
+
+- `GET /health` — estado do serviço.
+- `POST /chat` — recebe `{"message":"..."}` e, opcionalmente, `session_id`.
+- `DELETE /sessions/{session_id}` — apaga o histórico daquela sessão.
+
+O servidor aceita apenas conexões locais por padrão. Não o exponha diretamente à internet; para acesso remoto seriam necessárias proteções adicionais e HTTPS.
+
+## Desenvolvimento e validação
+
+```sh
+PYTHONPATH=src python -m compileall -q src tests
 PYTHONPATH=src python -m unittest discover -s tests -v
 ```
 
-## Integração contínua
-
-O GitHub Actions executa compilação e testes unitários em cada push e pull request.
-
-## Licença
-
-Ainda não definida.
+O GitHub Actions também compila e executa os testes em cada push e pull request.

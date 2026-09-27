@@ -6,6 +6,8 @@ from urllib.request import Request, urlopen
 
 from .config import Settings
 
+MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+
 
 class ProviderError(RuntimeError):
     """Erro seguro de comunicação com o provedor."""
@@ -36,10 +38,13 @@ class ChatProvider:
         )
         try:
             with urlopen(request, timeout=90) as response:
-                result = json.loads(response.read().decode("utf-8"))
+                body = response.read(MAX_RESPONSE_BYTES + 1)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise ProviderError("A resposta do provedor excedeu o limite de tamanho permitido.")
+                result = json.loads(body.decode("utf-8"))
         except HTTPError as exc:
             raise ProviderError(f"O provedor recusou a solicitação (HTTP {exc.code}).") from None
-        except (URLError, TimeoutError, json.JSONDecodeError):
+        except (URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError):
             raise ProviderError("Não foi possível obter resposta do provedor; verifique rede e configuração.") from None
 
         try:

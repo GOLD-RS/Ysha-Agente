@@ -1,5 +1,6 @@
 """Histórico persistente local em SQLite; cada sessão mantém contexto próprio."""
 
+from contextlib import contextmanager
 from pathlib import Path
 import sqlite3
 import threading
@@ -23,9 +24,20 @@ class HistoryStore:
                 created_at INTEGER NOT NULL
             )""")
             db.execute("CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, id)")
+        if database_path != ":memory:":
+            try:
+                Path(self.path).chmod(0o600)
+            except OSError:
+                pass
 
+    @contextmanager
     def _connect(self):
-        return sqlite3.connect(self.path, timeout=10)
+        db = sqlite3.connect(self.path, timeout=10)
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     def get(self, session_id: str) -> list[dict[str, str]]:
         with self._lock, self._connect() as db:

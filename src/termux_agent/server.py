@@ -40,7 +40,7 @@ def make_handler(agent: Agent):
             if self.path != "/health":
                 self._send_json(404, {"error": "not_found"})
                 return
-            self._send_json(200, {"status": "ok", "version": "0.2.0", "memory": "sqlite"})
+            self._send_json(200, {"status": "ok", "memory": "sqlite"})
 
         def do_POST(self):
             if self.path != "/chat":
