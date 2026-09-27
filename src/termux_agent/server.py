@@ -14,6 +14,7 @@ import uuid
 
 from .agent import Agent
 from .provider import ProviderError
+from .provider_manager import ProviderManagerError
 
 MAX_BODY_BYTES = 64 * 1024
 UI_HISTORY_LIMIT = 200
@@ -194,6 +195,9 @@ def make_handler(agent: Agent, access_token: str = ""):
                 answer = agent.respond(session_id, data["message"])
             except ValueError:
                 self._send_error_response(400, "invalid_message", "Confira a mensagem e tente novamente.")
+                return
+            except ProviderManagerError as exc:
+                self._send_error_response(exc.http_status, exc.error_code, str(exc))
                 return
             except ProviderError:
                 self._send_error_response(502, "provider_unavailable", "O provedor não respondeu em um formato utilizável.")

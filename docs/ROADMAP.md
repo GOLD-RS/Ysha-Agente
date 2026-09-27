@@ -17,9 +17,9 @@ Roadmap incremental para evoluir o produto sem trocar a base funcional. Uma etap
 ## P1 — contexto, provedores, ferramentas e observabilidade
 
 - [x] Criar interfaces separadas para provider, contexto, sessão, memória e política, mantendo endpoint, formato SQLite e comportamento existentes.
-- [ ] Evoluir os contratos para provider manager/streaming, recuperação de contexto e persistência sem acoplamento à implementação SQLite atual.
-- [ ] Gerenciar vários provedores/modelos por configuração; retry/backoff seletivo, fallback e limites de custo/tempo.
-- [ ] Implementar streaming/cancelamento e normalização de tool calling entre formatos, com testes sem chamadas pagas.
+- [x] Implementar `ProviderManager` com perfis múltiplos, seleção provider/modelo, adapter Chat Completions compatível com legado, timeouts por perfil, deadline e teto de tentativas compartilhados por resposta inteira, retries/backoff limitados, classificação de falhas e fallback explícito só para falhas transitórias.
+- [ ] Evoluir `ConversationMemory` para recuperação de contexto sem dependência obrigatória de SQLite no `Agent`, preservando o histórico completo.
+- [ ] Implementar streaming/cancelamento e adapters para contratos nativos diferentes, com testes sem chamadas pagas.
 - [ ] Evoluir memória com FTS5 detectado em runtime e fallback SQLite, busca por relevância, metadados, resumo e deduplicação.
 - [ ] Adicionar trilha de auditoria estruturada e logs rotativos sem conteúdo sensível ou segredos.
 - [ ] Substituir dispatch fixo por registry tipado de ferramentas, schemas, orçamento, política de risco e confirmação verificável.

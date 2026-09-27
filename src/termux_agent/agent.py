@@ -5,7 +5,7 @@ import re
 from .context import ContextBuilder
 from .memory import ConversationMemory
 from .policy import ToolPolicy
-from .provider import Provider, ProviderError, validate_assistant_message
+from .provider import Provider, ProviderContractError, ProviderError, validate_assistant_message
 from .sessions import SessionCoordinator
 from .tools import TOOL_DEFINITIONS
 
@@ -39,6 +39,10 @@ class Agent:
             raise ValueError("A mensagem excede o limite de 12.000 caracteres.")
 
         with self.sessions.hold(session_id):
+            response_scope = getattr(self.provider, "response_scope", None)
+            if callable(response_scope):
+                with response_scope():
+                    return self._respond_locked(session_id, message)
             return self._respond_locked(session_id, message)
 
     def _respond_locked(self, session_id: str, message: str) -> str:
@@ -65,10 +69,13 @@ class Agent:
                 "tool_calls": calls,
             })
             for call in calls:
+                result = self.tool_policy.execute_call(call)
+                if result == self.tool_policy.INVALID_RESULT:
+                    raise ProviderContractError("O provider retornou argumentos de ferramenta incompatíveis.")
                 messages.append({
                     "role": "tool",
                     "tool_call_id": call["id"],
-                    "content": self.tool_policy.execute_call(call),
+                    "content": result,
                 })
 
         raise ProviderError("O agente atingiu o limite de chamadas de ferramentas nesta resposta.")

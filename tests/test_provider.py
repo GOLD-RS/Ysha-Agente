@@ -1,5 +1,6 @@
 import json
 import os
+import secrets
 import unittest
 from unittest.mock import patch
 
@@ -7,6 +8,7 @@ from termux_agent.config import Settings
 from termux_agent.provider import (
     ChatProvider,
     ProviderError,
+    TransientProviderError,
     validate_assistant_message,
     validate_chat_completion,
 )
@@ -22,6 +24,20 @@ def valid_tool_call(call_id="call-1", arguments='{"expression":"2+2"}'):
         "type": "function",
         "function": {"name": "calculate", "arguments": arguments},
     }
+
+
+class MemoryResponse:
+    def __init__(self, body):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read(self, _limit):
+        return self.body
 
 
 class ProviderContractTests(unittest.TestCase):
@@ -97,8 +113,9 @@ class ProviderContractTests(unittest.TestCase):
             def read(self, _limit):
                 return b"internal-secret stack trace is not JSON"
 
+        credential = secrets.token_urlsafe(32)
         with patch.dict(os.environ, {
-            "AGENT_API_KEY": "provider-secret",
+            "AGENT_API_KEY": credential,
             "AGENT_BASE_URL": "https://api.example.test/v1",
             "AGENT_MODEL": "test-model",
         }, clear=True):
@@ -106,7 +123,7 @@ class ProviderContractTests(unittest.TestCase):
         with patch("termux_agent.provider.urlopen", return_value=FakeResponse()):
             with self.assertRaises(ProviderError) as caught:
                 provider.complete([], [])
-        self.assertNotIn("provider-secret", str(caught.exception))
+        self.assertNotIn(credential, str(caught.exception))
         self.assertNotIn("internal-secret", str(caught.exception))
 
     def test_duplicate_keys_in_http_response_are_rejected(self):
@@ -120,8 +137,9 @@ class ProviderContractTests(unittest.TestCase):
             def read(self, _limit):
                 return b'{"choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"choices":[]}'
 
+        credential = secrets.token_urlsafe(32)
         with patch.dict(os.environ, {
-            "AGENT_API_KEY": "test-key",
+            "AGENT_API_KEY": credential,
             "AGENT_BASE_URL": "https://api.example.test/v1",
             "AGENT_MODEL": "test-model",
         }, clear=True):
@@ -141,8 +159,9 @@ class ProviderContractTests(unittest.TestCase):
             def read(self, _limit):
                 return json.dumps(response({"role": "assistant", "content": "ready"})).encode()
 
+        credential = secrets.token_urlsafe(32)
         with patch.dict(os.environ, {
-            "AGENT_API_KEY": "test-key",
+            "AGENT_API_KEY": credential,
             "AGENT_BASE_URL": "https://api.example.test/v1",
             "AGENT_MODEL": "test-model",
         }, clear=True):
@@ -153,10 +172,55 @@ class ProviderContractTests(unittest.TestCase):
             })
 
 
+class ProviderFailureClassificationTests(unittest.TestCase):
+    def setUp(self):
+        credential = secrets.token_urlsafe(32)
+        with patch.dict(os.environ, {
+            "AGENT_API_KEY": credential,
+            "AGENT_BASE_URL": "https://provider.example.test/v1",
+            "AGENT_MODEL": "model",
+        }, clear=True):
+            self.provider = ChatProvider(Settings.from_env())
+
+    def test_rate_limit_and_server_errors_are_transient(self):
+        from urllib.error import HTTPError
+
+        for status in (408, 425, 429, 500, 502, 503, 504):
+            with self.subTest(status=status), patch(
+                "termux_agent.provider.urlopen",
+                side_effect=HTTPError("https://provider.example.test", status, "private body", None, None),
+            ):
+                with self.assertRaises(TransientProviderError):
+                    self.provider.complete([], [])
+
+    def test_auth_and_request_errors_are_permanent(self):
+        from urllib.error import HTTPError
+
+        for status in (400, 401, 403, 404, 501, 505, 511):
+            with self.subTest(status=status), patch(
+                "termux_agent.provider.urlopen",
+                side_effect=HTTPError("https://provider.example.test", status, "private body", None, None),
+            ):
+                with self.assertRaises(ProviderError) as caught:
+                    self.provider.complete([], [])
+                self.assertFalse(caught.exception.retryable)
+                self.assertNotIn("private body", str(caught.exception))
+
+    def test_socket_timeout_is_transient_but_malformed_response_is_permanent(self):
+        with patch("termux_agent.provider.urlopen", side_effect=TimeoutError):
+            with self.assertRaises(TransientProviderError):
+                self.provider.complete([], [])
+        with patch("termux_agent.provider.urlopen", return_value=MemoryResponse(b"not-json")):
+            with self.assertRaises(ProviderError) as caught:
+                self.provider.complete([], [])
+        self.assertFalse(caught.exception.retryable)
+
+
 class ProviderSecurityTests(unittest.TestCase):
     def test_refuses_plaintext_remote_endpoint_before_sending_api_key(self):
+        credential = secrets.token_urlsafe(32)
         environment = {
-            "AGENT_API_KEY": "do-not-send",
+            "AGENT_API_KEY": credential,
             "AGENT_BASE_URL": "http://api.example.test/v1",
             "AGENT_MODEL": "test-model",
         }
@@ -166,7 +230,7 @@ class ProviderSecurityTests(unittest.TestCase):
             with self.assertRaises(ProviderError) as caught:
                 provider.complete([], [])
         open_url.assert_not_called()
-        self.assertNotIn("do-not-send", str(caught.exception))
+        self.assertNotIn(credential, str(caught.exception))
 
 
 if __name__ == "__main__":

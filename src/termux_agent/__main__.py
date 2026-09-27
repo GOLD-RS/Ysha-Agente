@@ -6,7 +6,7 @@ from .agent import Agent
 from .config import Settings, load_env_file, validate_settings
 from .db_maintenance import DatabaseLock
 from .history import HistoryStore
-from .provider import ChatProvider
+from .provider_manager import ProviderManager
 from .server import serve
 
 
@@ -21,7 +21,7 @@ def main() -> None:
     with DatabaseLock(settings.database_path):
         memory = HistoryStore(settings.database_path, settings.history_limit)
         try:
-            agent = Agent(ChatProvider(settings), memory, system_prompt=settings.system_prompt)
+            agent = Agent(ProviderManager(settings), memory, system_prompt=settings.system_prompt)
             serve(agent, settings.host, settings.port, settings.access_token)
         finally:
             memory.close()
