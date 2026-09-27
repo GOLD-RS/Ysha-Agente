@@ -4,3 +4,6 @@ __pycache__/
 *.py[cod]
 *.log
 .pytest_cache/
+data/*.sqlite3
+data/*.sqlite3-shm
+data/*.sqlite3-wal
