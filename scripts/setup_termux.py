@@ -13,10 +13,11 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 ENV_FILE = ROOT / ".env"
 EXAMPLE_FILE = ROOT / ".env.example"
-KEY_NAMES = ("AGENT_API_KEY", "AGENT_BASE_URL", "AGENT_MODEL")
 ASSIGNMENT = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
-DEFAULT_BASE_URL = "https://apihub.agnes-ai.com/v1"
-DEFAULT_MODEL = "agnes-3.0-flash"
+PROVIDERS = {
+    "1": ("Outro provedor compatível com OpenAI Chat Completions", "", ""),
+    "2": ("Agnes AI (opcional)", "https://apihub.agnes-ai.com/v1", "agnes-3.0-flash"),
+}
 
 
 def read_values(lines: list[str]) -> dict[str, str]:
@@ -55,8 +56,34 @@ def ask_default(label: str, default: str) -> str:
     return value or default
 
 
-def yes_no(prompt: str) -> bool:
-    return input(f"{prompt} [y/N]: ").strip().lower() in ("y", "yes", "s", "sim")
+def yes_no(prompt: str, default: bool = False) -> bool:
+    marker = "Y/n" if default else "y/N"
+    answer = input(f"{prompt} [{marker}]: ").strip().lower()
+    if not answer:
+        return default
+    return answer in ("y", "yes", "s", "sim")
+
+
+def choose_provider(current: dict[str, str]) -> tuple[str, str]:
+    current_url = current.get("AGENT_BASE_URL", "")
+    current_model = current.get("AGENT_MODEL", "")
+    if current_url and current_model and yes_no("Manter o provedor e modelo já configurados?", default=True):
+        return current_url, current_model
+
+    print("\nEscolha uma configuração de provedor:")
+    for code, (label, _, _) in PROVIDERS.items():
+        print(f"  {code}. {label}")
+    choice = input("Opção [1]: ").strip() or "1"
+    while choice not in PROVIDERS:
+        choice = input("Escolha 1 ou 2: ").strip()
+    label, preset_url, preset_model = PROVIDERS[choice]
+    if choice == "1":
+        print("Informe os dados publicados pelo seu provedor OpenAI-compatível.")
+    else:
+        print(f"Configuração pronta para {label}; você ainda pode editar os valores.")
+    base_url = ask_default("URL-base da API", preset_url).rstrip("/")
+    model = ask_default("Identificador exato do modelo", preset_model)
+    return base_url, model
 
 
 def install_boot_launcher() -> None:
@@ -99,16 +126,15 @@ def main() -> int:
         else:
             print("Chave existente mantida; ela não será exibida.")
     else:
-        api_key = getpass("Chave API da Agnes AI (entrada oculta; Enter para configurar depois): ").strip()
+        api_key = getpass("Chave API do provedor (entrada oculta; Enter para configurar depois): ").strip()
 
-    base_url = ask_default("URL-base do provedor", current.get("AGENT_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
+    base_url, model = choose_provider(current)
     parsed = urlsplit(base_url)
     if parsed.scheme not in ("https", "http") or not parsed.netloc:
-        print("URL inválida: informe um endereço começando com https:// ou http://.", file=sys.stderr)
+        print("URL inválida: informe a URL-base documentada pelo provedor, começando com https:// ou http://.", file=sys.stderr)
         return 1
-    model = ask_default("Identificador do modelo", current.get("AGENT_MODEL") or DEFAULT_MODEL)
     if not model:
-        print("O identificador do modelo não pode ficar vazio.", file=sys.stderr)
+        print("O identificador exato do modelo não pode ficar vazio.", file=sys.stderr)
         return 1
 
     updates = {

@@ -12,8 +12,8 @@ set -a
 . ./.env
 set +a
 
-if [ -z "${AGENT_API_KEY:-}" ]; then
-  echo "AGENT_API_KEY está vazio. Execute ./setup-termux.sh para configurar a API." >&2
+if [ -z "${AGENT_API_KEY:-}" ] || [ -z "${AGENT_BASE_URL:-}" ] || [ -z "${AGENT_MODEL:-}" ]; then
+  echo "Configure AGENT_API_KEY, AGENT_BASE_URL e AGENT_MODEL com ./setup-termux.sh." >&2
   exit 1
 fi
 export PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"

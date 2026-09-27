@@ -4,7 +4,7 @@ Assistente pessoal de IA para Android/Termux. O repositório é público e pode 
 
 ## Estado atual
 
-O Ysha funciona como um servidor local de conversa conectado a uma API compatível com OpenAI Chat Completions. A configuração inicial usa Agnes AI (`agnes-3.0-flash`), mas o provedor pode ser trocado no arquivo local `.env`.
+O Ysha funciona como um servidor local de conversa conectado a qualquer provedor que ofereça endpoint compatível com OpenAI Chat Completions e chamadas de ferramentas. Não há provedor obrigatório nem padrão associado a uma empresa; cada pessoa configura seu próprio endpoint, modelo e chave no arquivo local `.env`.
 
 - Servidor local em `127.0.0.1:8765`.
 - Histórico SQLite persistente por sessão, limitado às últimas 20 mensagens por padrão.
@@ -18,7 +18,7 @@ O Ysha funciona como um servidor local de conversa conectado a uma API compatív
 
 - Android com Termux instalado por uma fonte confiável.
 - Python 3.10 ou mais recente; o setup instala Python pelo `pkg` se necessário.
-- Chave de API do Agnes AI ou de outro provedor compatível com Chat Completions e chamadas de ferramentas.
+- Chave de API do provedor escolhido, compatível com Chat Completions e chamadas de ferramentas.
 
 ## Instalação guiada no Termux
 
@@ -35,7 +35,7 @@ chmod +x setup-termux.sh start-agent.sh
 ./setup-termux.sh
 ```
 
-O setup cria ou atualiza `.env`, pede a chave API sem exibi-la, sugere Agnes 3.0 Flash por padrão, valida a URL/modelo, protege `.env` com permissão privada e roda os testes. Se já houver uma chave salva, ela é mantida a menos que você escolha trocá-la. A configuração de Termux:Boot é opcional e o setup só a instala se você confirmar.
+O setup cria ou atualiza `.env`, pede a chave API sem exibi-la, oferece configuração genérica de endpoint compatível com OpenAI por padrão e permite escolher uma configuração opcional da Agnes AI. Valida a URL/modelo, protege `.env` com permissão privada e roda os testes. Se já houver provedor e chave configurados, eles são mantidos a menos que você escolha alterá-los. A configuração de Termux:Boot é opcional e só ocorre com sua confirmação.
 
 A chave precisa ser criada na conta do provedor de IA. Não a envie no chat, não a publique e não a coloque em um commit. O setup não instala bibliotecas Python externas: o agente usa a biblioteca padrão.
 
@@ -60,14 +60,9 @@ Use o mesmo `session_id` para continuar a conversa. A resposta inclui `reply` e 
 
 ## Configuração da API
 
-O setup usa por padrão os dados publicados pela Agnes AI para Agnes 3.0 Flash:
+No setup, escolha a opção genérica e informe o endpoint-base, o nome exato do modelo e uma chave emitida pelo provedor que você usa. O endpoint precisa seguir o formato OpenAI Chat Completions e aceitar chamadas de ferramentas; isso permite configurar diferentes serviços sem prender o projeto a um deles. A Agnes AI aparece apenas como atalho opcional. Depois de editar `.env`, encerre o processo com Ctrl+C e rode `./start-agent.sh` novamente. Confirme na documentação do provedor o endpoint e o identificador do modelo.
 
-```env
-AGENT_BASE_URL=https://apihub.agnes-ai.com/v1
-AGENT_MODEL=agnes-3.0-flash
-```
-
-Esses valores podem ser alterados em `.env` para outro provedor compatível com Chat Completions e chamadas de ferramentas. Depois de editar `.env`, encerre o processo com Ctrl+C e rode `./start-agent.sh` novamente. Confira no painel do provedor o nome exato do modelo e o formato do endpoint.
+Preencha `AGENT_API_KEY`, `AGENT_BASE_URL` e `AGENT_MODEL` em `.env`; use os valores e o formato informados pelo provedor escolhido.
 
 Variáveis adicionais incluem `AGENT_HOST`, `AGENT_PORT`, `AGENT_ACCESS_TOKEN`, `AGENT_DB_PATH` e `AGENT_HISTORY_LIMIT`. Por segurança, mantenha `AGENT_HOST=127.0.0.1`. Um token é opcional no loopback; se configurar `AGENT_ACCESS_TOKEN`, inclua `Authorization: Bearer <token>` nas chamadas protegidas.
 

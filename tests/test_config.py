@@ -6,11 +6,11 @@ from termux_agent.config import Settings
 
 
 class ConfigTests(unittest.TestCase):
-    def test_defaults_use_agnes_flash_and_localhost_only(self):
+    def test_defaults_are_provider_neutral_and_localhost_only(self):
         with patch.dict(os.environ, {}, clear=True):
             settings = Settings.from_env()
-        self.assertEqual(settings.base_url, "https://apihub.agnes-ai.com/v1")
-        self.assertEqual(settings.model, "agnes-3.0-flash")
+        self.assertEqual(settings.base_url, "")
+        self.assertEqual(settings.model, "")
         self.assertEqual(settings.host, "127.0.0.1")
         self.assertEqual(settings.port, 8765)
         self.assertEqual(settings.api_key, "")

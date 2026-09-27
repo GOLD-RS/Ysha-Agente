@@ -1,9 +1,10 @@
 import sys
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from setup_termux import read_values, update_values  # noqa: E402
+from setup_termux import choose_provider, read_values, update_values  # noqa: E402
 
 
 class SetupTests(unittest.TestCase):
@@ -26,6 +27,17 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(values["AGENT_MODEL"], "agnes-3.0-flash")
         self.assertEqual(values["AGENT_SYSTEM_PROMPT"], "Keep this prompt intact.")
         self.assertIn("# local configuration", updated)
+
+    def test_new_install_defaults_to_provider_neutral_endpoint(self):
+        with patch("builtins.input", side_effect=["1", "https://api.example.test/v1", "custom-model"]):
+            base_url, model = choose_provider({})
+        self.assertEqual(base_url, "https://api.example.test/v1")
+        self.assertEqual(model, "custom-model")
+
+    def test_current_provider_is_preserved_by_default(self):
+        current = {"AGENT_BASE_URL": "https://provider.test/v1", "AGENT_MODEL": "chosen-model"}
+        with patch("builtins.input", return_value=""):
+            self.assertEqual(choose_provider(current), (current["AGENT_BASE_URL"], current["AGENT_MODEL"]))
 
 
 if __name__ == "__main__":
