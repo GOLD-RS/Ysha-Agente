@@ -12,6 +12,8 @@ class Settings:
     host: str
     port: int
     system_prompt: str
+    database_path: str
+    history_limit: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -23,6 +25,9 @@ class Settings:
             port=int(os.getenv("AGENT_PORT", "8765")),
             system_prompt=os.getenv(
                 "AGENT_SYSTEM_PROMPT",
-                "Você é um assistente útil, cuidadoso e objetivo.",
+                "Você é Ysha Agente, um assistente útil, cuidadoso e objetivo. "
+                "Peça confirmação antes de ações externas ou irreversíveis.",
             ),
+            database_path=os.getenv("AGENT_DB_PATH", "data/ysha-agent.sqlite3"),
+            history_limit=max(2, min(100, int(os.getenv("AGENT_HISTORY_LIMIT", "20")))),
         )
