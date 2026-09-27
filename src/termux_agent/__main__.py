@@ -2,6 +2,7 @@
 
 from .agent import Agent
 from .config import Settings
+from .history import HistoryStore
 from .provider import ChatProvider
 from .server import serve
 
@@ -10,7 +11,10 @@ def main() -> None:
     settings = Settings.from_env()
     if not 1 <= settings.port <= 65535:
         raise SystemExit("AGENT_PORT precisa estar entre 1 e 65535.")
-    serve(Agent(ChatProvider(settings)), settings.host, settings.port)
+    if settings.host not in ("127.0.0.1", "localhost", "::1"):
+        print("AVISO: o servidor ficará acessível na rede; proteja-o antes de continuar.", flush=True)
+    history = HistoryStore(settings.database_path, settings.history_limit)
+    serve(Agent(ChatProvider(settings), history), settings.host, settings.port)
 
 
 if __name__ == "__main__":
