@@ -9,6 +9,7 @@ Um agente pessoal de IA pensado para rodar continuamente em Android com Termux. 
 - Servidor HTTP persistente em `127.0.0.1:8765`.
 - `GET /health` para verificar se está ativo.
 - `POST /chat` para conversar com um modelo configurado, com contexto persistido por sessão.
+- Serialização por sessão: mensagens simultâneas preservam a ordem do contexto sem bloquear sessões diferentes.
 - Ferramentas limitadas: consulta de hora local e calculadora protegida por análise sintática (sem execução de código).
 - `DELETE /sessions/{session_id}` para apagar o histórico daquela sessão.
 - Supervisor do Termux:Boot: tenta reiniciar o processo após falhas, aguardando 10 segundos.
