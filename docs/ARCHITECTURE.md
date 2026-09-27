@@ -7,7 +7,7 @@ Este documento descreve o código que existe agora; não trata itens planejados 
 - `src/termux_agent/__main__.py`: valida configuração e inicializa servidor, provedor, histórico e agente.
 - `config.py`: interpreta `.env` sem executar conteúdo, lê variáveis de ambiente e valida configuração/endpoints.
 - `agent.py`: monta o prompt com contexto recente, executa o ciclo limitado de tool calling e serializa requisições da mesma sessão.
-- `provider.py`: cliente síncrono para a forma OpenAI Chat Completions, com timeout e limite de resposta.
+- `provider.py`: cliente síncrono para Chat Completions, com timeout/limite de resposta, validação do envelope e normalização estrita de mensagem, chamadas, identificadores e argumentos JSON.
 - `history.py`: persistência SQLite, transcript por sessão e arquivamento comprimido de blocos antigos; o contexto de modelo é limitado separadamente.
 - `db_maintenance.py`: API SQLite de snapshot/verificação/restauração, bloqueio entre processos e salvaguarda antes de restore.
 - `tools.py`: dispatch fixo para hora local e calculadora AST segura.

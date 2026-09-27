@@ -6,7 +6,7 @@ import re
 import threading
 
 from .history import HistoryStore
-from .provider import ChatProvider, ProviderError
+from .provider import ChatProvider, ProviderError, validate_assistant_message
 from .tools import TOOL_DEFINITIONS, ToolError, run_tool
 
 SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -58,8 +58,9 @@ class Agent:
 
         tool_budget = 8
         for _ in range(4):
-            answer = self.provider.complete(messages, TOOL_DEFINITIONS)
-            calls = answer.get("tool_calls") or []
+            raw_answer = self.provider.complete(messages, TOOL_DEFINITIONS)
+            answer = validate_assistant_message(raw_answer, require_role=False)
+            calls = answer["tool_calls"]
             if not isinstance(calls, list):
                 raise ProviderError("O provedor retornou chamadas de ferramentas inválidas.")
             if len(calls) > tool_budget:

@@ -6,6 +6,7 @@ import unittest
 
 from termux_agent.agent import Agent
 from termux_agent.history import HistoryStore
+from termux_agent.provider import ProviderError
 from termux_agent.tools import ToolError, calculate
 from termux_agent.server import authorization_valid
 
@@ -48,6 +49,18 @@ class AgentTests(unittest.TestCase):
             {"role": "user", "content": "oi"},
             {"role": "assistant", "content": "eco de teste"},
         ])
+
+    def test_malformed_provider_messages_fail_safely_without_saving_partial_turns(self):
+        malformed = [
+            {"content": [], "tool_calls": []},
+            {"content": None, "tool_calls": [{"type": "function", "function": {"name": "calculate", "arguments": "{}"}}]},
+        ]
+        for response in malformed:
+            with self.subTest(response=response):
+                agent = Agent(FakeProvider([response]), self.history)
+                with self.assertRaises(ProviderError):
+                    agent.respond("malformed", "test")
+                self.assertEqual(self.history.get("malformed"), [])
 
     def test_existing_database_is_migrated_additively_without_losing_rows(self):
         path = f"{self.temp.name}/old-schema.sqlite3"
