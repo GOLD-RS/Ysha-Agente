@@ -4,6 +4,7 @@ import unittest
 from termux_agent.agent import Agent
 from termux_agent.history import HistoryStore
 from termux_agent.tools import ToolError, calculate
+from termux_agent.server import authorization_valid
 
 
 class FakeProvider:
@@ -57,6 +58,13 @@ class AgentTests(unittest.TestCase):
         self.agent.respond("apagar", "olá")
         self.assertEqual(self.history.delete("apagar"), 2)
         self.assertEqual(self.history.get("apagar"), [])
+
+
+class SecurityTests(unittest.TestCase):
+    def test_optional_bearer_token(self):
+        self.assertTrue(authorization_valid("", ""))
+        self.assertTrue(authorization_valid("Bearer secret", "secret"))
+        self.assertFalse(authorization_valid("Bearer wrong", "secret"))
 
 
 class ToolTests(unittest.TestCase):
