@@ -76,7 +76,7 @@ O script supervisiona o processo, tenta reiniciá-lo após falhas, grava saída 
 
 O histórico é salvo localmente em `data/ysha-agent.sqlite3` (ou `AGENT_DB_PATH`) e limitado às últimas 20 mensagens por sessão (`AGENT_HISTORY_LIMIT`). Envie `session_id` no JSON para retomar uma sessão; omita para iniciar uma nova. Apague uma sessão com `DELETE /sessions/{session_id}`. O banco pode conter informações pessoais: proteja o aparelho e faça backup somente se desejar.
 
-A API local não tem autenticação e fica vinculada a `127.0.0.1` por padrão. Não a exponha diretamente à internet. As ferramentas desta versão não executam comandos, não acessam arquivos e não fazem ações externas. O projeto ainda precisa de autenticação, controle de acesso e confirmações antes de adicionar integrações mais poderosas. Android pode encerrar processos em segundo plano; 24/7 não é garantido apenas pelo app.
+No loopback, a API não exige autenticação por padrão. Se `AGENT_ACCESS_TOKEN` estiver definido, envie `Authorization: Bearer <token>` nas chamadas de conversa e exclusão. Para escutar fora de `127.0.0.1`, a inicialização exige um token; ainda assim, não exponha o serviço diretamente à internet sem HTTPS e uma camada de acesso adequada. As ferramentas atuais não executam comandos, não acessam arquivos e não fazem ações externas. Android pode encerrar processos em segundo plano; 24/7 não é garantido apenas pelo app.
 
 ## Desenvolvimento
 
