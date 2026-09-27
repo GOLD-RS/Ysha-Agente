@@ -11,8 +11,8 @@ def main() -> None:
     settings = Settings.from_env()
     if not 1 <= settings.port <= 65535:
         raise SystemExit("AGENT_PORT precisa estar entre 1 e 65535.")
-    if settings.host not in ("127.0.0.1", "localhost", "::1"):
-        print("AVISO: o servidor ficará acessível na rede; proteja-o antes de continuar.", flush=True)
+    if settings.host not in ("127.0.0.1", "localhost", "::1") and not settings.access_token:
+        raise SystemExit("Defina AGENT_ACCESS_TOKEN antes de escutar em uma interface de rede.")
     history = HistoryStore(settings.database_path, settings.history_limit)
     serve(Agent(ChatProvider(settings), history), settings.host, settings.port)
 
