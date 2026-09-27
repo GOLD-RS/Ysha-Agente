@@ -14,7 +14,9 @@ SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 def authorization_valid(provided: str, token: str) -> bool:
-    return not token or hmac.compare_digest(provided, f"Bearer {token}")
+    return not token or hmac.compare_digest(
+        provided.encode("utf-8"), f"Bearer {token}".encode("utf-8")
+    )
 
 
 def make_handler(agent: Agent):
